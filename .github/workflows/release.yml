@@ -663,23 +663,14 @@ jobs:
       - uses: storytold/craft-common-actions/actions/install-trunk@fa5ef18780cf5e7d5d3b8de068de56cffc83cac5
         with:
           trunk-version: 0.21.14
-      - name: Check out craft-fonts
-        if: false
-        uses: storytold/craft-common-actions/actions/checkout-craft-fonts@fa5ef18780cf5e7d5d3b8de068de56cffc83cac5
-        with:
-          ref: b076417b5880bd4154bd22f00695b1d28c6bea83
+      # Upstream's web release also builds with craft-fonts; DraftCraft's leaves that build out
+      # (it was disabled with `if: false`, which actionlint rejects).
       - name: Check out craft-i18n
         uses: storytold/craft-common-actions/actions/checkout-craft-i18n@fa5ef18780cf5e7d5d3b8de068de56cffc83cac5
       - name: Apply version override
         if: inputs.version != ''
         run: cargo xtask version set "$VERSION"
       - name: Build and zip
-        run: packaging/web/package.sh
-      - name: Build and zip (with craft-fonts)
-        if: false
-        env:
-          CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
-          CRAFT_FONTS_REQUIRED: "1"
         run: packaging/web/package.sh
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
