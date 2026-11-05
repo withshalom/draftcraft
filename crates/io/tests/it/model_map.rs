@@ -2,7 +2,7 @@
 //! `docs/cadcraft-doc.md`.
 //!
 //! Runs only when `MI201_CORPUS` names a folder of AutoCAD-saved DXF and DWG files, for example
-//! the MI-201 corpus (`corpus/mosaiciron-mi201` in https://github.com/withshalom/CAD). The
+//! the MI-201 corpus (`corpus/mosaiciron-mi201` in https://github.com/withshalom/blackcad). The
 //! files are AutoCAD's, so they are never committed here; without the variable the test does
 //! nothing. With `CADCRAFT_MODEL_MAP=path` it also writes the report to that file.
 //!
