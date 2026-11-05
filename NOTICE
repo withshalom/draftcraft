@@ -16,7 +16,7 @@ is available from crates.io and the repository above.
 
 DWG is read and written first with the open engine's DWG and DXF crates
 (cad-dwg, cad-dxf and the cad-model crate they share), licensed under the MIT License or the Apache License, Version 2.0, at your option, from
-https://github.com/withshalom/CAD (crates/cad-*). The rest of that repository is not open
+https://github.com/withshalom/blackcad (crates/cad-*). The rest of that repository is not open
 source; CADCraft uses only those four crates.
 
 
