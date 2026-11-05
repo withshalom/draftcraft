@@ -615,7 +615,7 @@ checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 [[package]]
 name = "cad-dwg"
 version = "0.17.0"
-source = "git+https://github.com/withshalom/blackcad?rev=dbb31e5dfd0c75610318ff62b7cc3acfbc73af30#dbb31e5dfd0c75610318ff62b7cc3acfbc73af30"
+source = "git+https://github.com/withshalom/blackcad?rev=9d103ae3d7bb31c6e79726d3f88ffed37a841758#9d103ae3d7bb31c6e79726d3f88ffed37a841758"
 dependencies = [
  "cad-model",
 ]
@@ -623,7 +623,7 @@ dependencies = [
 [[package]]
 name = "cad-dxf"
 version = "0.17.0"
-source = "git+https://github.com/withshalom/blackcad?rev=dbb31e5dfd0c75610318ff62b7cc3acfbc73af30#dbb31e5dfd0c75610318ff62b7cc3acfbc73af30"
+source = "git+https://github.com/withshalom/blackcad?rev=9d103ae3d7bb31c6e79726d3f88ffed37a841758#9d103ae3d7bb31c6e79726d3f88ffed37a841758"
 dependencies = [
  "cad-dwg",
  "cad-model",
@@ -632,7 +632,7 @@ dependencies = [
 [[package]]
 name = "cad-model"
 version = "0.17.0"
-source = "git+https://github.com/withshalom/blackcad?rev=dbb31e5dfd0c75610318ff62b7cc3acfbc73af30#dbb31e5dfd0c75610318ff62b7cc3acfbc73af30"
+source = "git+https://github.com/withshalom/blackcad?rev=9d103ae3d7bb31c6e79726d3f88ffed37a841758#9d103ae3d7bb31c6e79726d3f88ffed37a841758"
 
 [[package]]
 name = "cadcraft"

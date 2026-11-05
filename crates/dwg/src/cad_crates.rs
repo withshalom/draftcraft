@@ -71,7 +71,27 @@ pub(crate) fn dxf_to_dwg(dxf: &[u8]) -> Result<Outcome, Failure> {
         // Why, object by object: what the writer said about the first few.
         losses.extend(out.notes.iter().take(WRITER_NOTES).map(|n| format!("DWG writer: {n}")));
     }
+    losses.extend(read_back_losses(&d, &out));
     Ok(outcome(out.bytes, losses))
+}
+
+/// What the written file loses that the writer didn't report: the file read back and compared
+/// with the drawing, object by object (`cad_dwg::write::check`). A value written wrong, or never
+/// written, makes the save partial, so the caller tries acadrust before settling for it.
+fn read_back_losses(d: &Drawing, out: &cad_dwg::write::DwgOutput) -> Vec<String> {
+    let check = match catch_unwind(AssertUnwindSafe(|| cad_dwg::write::check(d, out))) {
+        Ok(Ok(c)) => c,
+        Ok(Err(e)) => return vec![format!("DWG: the file written doesn't read back ({e})")],
+        Err(_) => return vec!["DWG: reading the file written back failed".into()],
+    };
+    if check.is_whole() {
+        return Vec::new();
+    }
+    let mut losses = Vec::new();
+    losses.extend(objects_note(&check.changed, "DWG", "read back different from the drawing"));
+    losses.extend(objects_note(&check.vanished, "DWG", "went missing from the file"));
+    losses.extend(check.notes.iter().take(WRITER_NOTES).map(|n| format!("DWG check: {n}")));
+    losses
 }
 
 /// Most of the DWG writer's own notes passed on when it leaves objects out.
@@ -97,16 +117,31 @@ const NOTE_TYPES: usize = 6;
 /// The note on the objects a conversion of a `format` file left out, by type (most first), or
 /// nothing.
 pub(crate) fn left_out_note(left_out: &std::collections::BTreeMap<String, usize>, format: &str, what: &str) -> Option<String> {
-    let total: usize = left_out.values().sum();
+    let (total, list) = by_type(left_out)?;
+    let (objects, were) = if total == 1 { ("object", "was") } else { ("objects", "were") };
+    Some(format!("{format}: {total} {objects} {what} and {were} left out ({list})"))
+}
+
+/// The note on objects of a `format` file that `what` (e.g. "read back different"), by type
+/// (most first), or nothing.
+fn objects_note(by: &std::collections::BTreeMap<String, usize>, format: &str, what: &str) -> Option<String> {
+    let (total, list) = by_type(by)?;
+    let objects = if total == 1 { "object" } else { "objects" };
+    Some(format!("{format}: {total} {objects} {what} ({list})"))
+}
+
+/// The total of `by`, and its types with their counts, most first, at most [`NOTE_TYPES`] named.
+/// Nothing when the total is 0.
+fn by_type(by: &std::collections::BTreeMap<String, usize>) -> Option<(usize, String)> {
+    let total: usize = by.values().sum();
     if total == 0 {
         return None;
     }
-    let mut types: Vec<(&String, &usize)> = left_out.iter().collect();
+    let mut types: Vec<(&String, &usize)> = by.iter().collect();
     types.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
     let mut list: Vec<String> = types.iter().take(NOTE_TYPES).map(|(t, n)| format!("{t} × {n}")).collect();
     if types.len() > NOTE_TYPES {
         list.push(format!("{} more types", types.len() - NOTE_TYPES));
     }
-    let (objects, were) = if total == 1 { ("object", "was") } else { ("objects", "were") };
-    Some(format!("{format}: {total} {objects} {what} and {were} left out ({})", list.join(", ")))
+    Some((total, list.join(", ")))
 }

@@ -45,8 +45,8 @@ rayon = "1"
 
 # DWG: WithShalom's open DWG and DXF readers and writers (MIT OR Apache-2.0, std only), the first
 # engine crates/dwg tries; acadrust (crates/dwg, native only) is the second.
-cad-dwg = { git = "https://github.com/withshalom/blackcad", rev = "dbb31e5dfd0c75610318ff62b7cc3acfbc73af30" }
-cad-dxf = { git = "https://github.com/withshalom/blackcad", rev = "dbb31e5dfd0c75610318ff62b7cc3acfbc73af30" }
+cad-dwg = { git = "https://github.com/withshalom/blackcad", rev = "9d103ae3d7bb31c6e79726d3f88ffed37a841758" }
+cad-dxf = { git = "https://github.com/withshalom/blackcad", rev = "9d103ae3d7bb31c6e79726d3f88ffed37a841758" }
 
 # rendering / formats
 tiny-skia = { version = "0.12", default-features = false, features = ["std", "simd", "png-format"] }
