@@ -76,7 +76,6 @@ fn dxf_mtext_caret_spaces_round_trip() -> TestResult {
 
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
-#[ignore = "Confirmed DWG loss (open engine's writer): a space after an MTEXT caret comes back doubled"]
 fn dwg_mtext_caret_spaces_round_trip() -> TestResult {
     let (original, expected) = drawing()?;
     for version in Version::ALL {
@@ -106,7 +105,6 @@ fn dwg_mtext_caret_spaces_round_trip() -> TestResult {
 
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
-#[ignore = "Confirmed DWG loss (open engine's writer): an MTEXT caret space is not written the way the return bridge expects"]
 fn bridge_caret_space_is_escaped_once_in_each_direction() -> TestResult {
     let (d, _) = drawing()?;
     let dxf = cadcraft_io::write_dxf(&d);
