@@ -1,5 +1,5 @@
 //! DWG through WithShalom's open DWG and DXF crates (`cad-dwg`, `cad-dxf`, MIT OR Apache-2.0,
-//! <https://github.com/withshalom/CAD>): the engine this crate tries first. They read DWG from R13
+//! <https://github.com/withshalom/blackcad>): the engine this crate tries first. They read DWG from R13
 //! to 2018 and later except 2007 (AC1021), write AutoCAD 2018 (AC1032) DWG, and count what a
 //! conversion leaves out. They use the standard library alone, so they also run in the web build.
 //!

@@ -1,6 +1,6 @@
 # Builds the browser version from the `dwg-web` branch (dwg-fidelity's DWG work, built for the web)
 # and publishes it to GitHub Pages. Runs only in withshalom/dwgcraft. Before publishing it opens
-# real DWG drawings (the MI-201 corpus, cloned from withshalom/CAD at run time, never committed
+# real DWG drawings (the MI-201 corpus, cloned from withshalom/blackcad at run time, never committed
 # here) in the built page, in a headless browser, and pushes the pictures and the browser console
 # to this repo's `previews` branch: the proof that the web build reads DWG.
 name: dwg-web-deploy
@@ -66,7 +66,7 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
-          git clone --depth 1 https://github.com/withshalom/CAD "$RUNNER_TEMP/corpus"
+          git clone --depth 1 https://github.com/withshalom/blackcad "$RUNNER_TEMP/corpus"
           export DWG_FILES=$(find "$RUNNER_TEMP/corpus/corpus/mosaiciron-mi201" -iname '*.dwg' -size -6M | sort | head -3)
           echo "DWG files: $DWG_FILES"
           mkdir -p "$RUNNER_TEMP/shots" && cd "$RUNNER_TEMP/shots"

@@ -1,7 +1,7 @@
 //! What a real DWG keeps when CADCraft opens it and saves it again as DWG.
 //!
 //! Runs only when `MI201_CORPUS` names a folder of DWG files. In CI that is the open engine's MI-201
-//! corpus (`corpus/mosaiciron-mi201` in withshalom/CAD): one part saved by AutoCAD in every version
+//! corpus (`corpus/mosaiciron-mi201` in withshalom/blackcad): one part saved by AutoCAD in every version
 //! from R14 to 2018. The files are AutoCAD's, so they are never committed here; without the
 //! variable the test does nothing.
 //!

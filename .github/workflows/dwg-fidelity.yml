@@ -1,7 +1,7 @@
 # The dwg-fidelity branch: CADCraft holds DWG files with more fidelity, through the open engine's open
 # crates; CADCraft's model and behaviour stay as they are. Lint, tests
 # and the web check of the crates the branch changes, and a round trip of the MI-201 corpus
-# (real AutoCAD files, cloned from withshalom/CAD at run time, never committed here). Failures and
+# (real AutoCAD files, cloned from withshalom/blackcad at run time, never committed here). Failures and
 # the corpus report are posted as annotations. `full: true` also runs `cargo xtask ci`.
 name: dwg-fidelity
 
@@ -43,7 +43,7 @@ jobs:
           rustc --version
       - name: MI-201 corpus
         run: |
-          git clone --depth 1 https://github.com/withshalom/CAD "$RUNNER_TEMP/corpus"
+          git clone --depth 1 https://github.com/withshalom/blackcad "$RUNNER_TEMP/corpus"
           echo "MI201_CORPUS=$RUNNER_TEMP/corpus/corpus/mosaiciron-mi201" >> "$GITHUB_ENV"
       - name: Format
         run: |
