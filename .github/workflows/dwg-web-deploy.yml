@@ -68,7 +68,8 @@ jobs:
         shell: bash
         run: |
           git clone --depth 1 https://github.com/withshalom/blackcad "$RUNNER_TEMP/corpus"
-          export DWG_FILES=$(find "$RUNNER_TEMP/corpus/corpus/mosaiciron-mi201" -iname '*.dwg' -size -6M | sort | head -3)
+          DWG_FILES=$(find "$RUNNER_TEMP/corpus/corpus/mosaiciron-mi201" -iname '*.dwg' -size -6M | sort | head -3)
+          export DWG_FILES
           echo "DWG files: $DWG_FILES"
           mkdir -p "$RUNNER_TEMP/shots" && cd "$RUNNER_TEMP/shots"
           cp "$GITHUB_WORKSPACE/.github/scripts/dwg-open.mjs" .
