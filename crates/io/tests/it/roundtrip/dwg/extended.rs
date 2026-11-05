@@ -261,7 +261,6 @@ fn block_arrays() {
     check(blocks::arrays());
 }
 #[test]
-#[ignore = "Confirmed DWG loss (open engine's writer): a block's explodable flag is not kept"]
 fn block_metadata() {
     since_2007(blocks::metadata());
 }

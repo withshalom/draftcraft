@@ -35,7 +35,6 @@ fn dxf_exhausted_handles_are_preserved_or_refused() {
 
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
-#[ignore = "Confirmed DWG loss (open engine's writer): a drawing with exhausted handles is saved as a file that can't be read back"]
 fn dwg_exhausted_handles_are_preserved_or_refused() {
     preserves_or_refuses("memory.dwg", false);
 }

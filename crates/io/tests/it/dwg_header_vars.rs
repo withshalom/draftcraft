@@ -94,7 +94,6 @@ fn the_current_layer_round_trips_through_dwg() {
 /// `$CLAYER` naming the layer in other letter case still finds it: the DWG comes back on the
 /// layer, under the layer's own spelling, not on "0" (#2252).
 #[test]
-#[ignore = "Confirmed DWG loss (open engine's writer): $CLAYER naming a layer in other letter case comes back as layer 0"]
 fn a_current_layer_in_other_case_resolves_to_the_layer() {
     let mut d = Drawing::new_metric();
     d.layers.push(cadcraft_doc::Layer::new("Survey_\u{c4}"));
