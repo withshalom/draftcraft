@@ -189,22 +189,18 @@ fn faces() {
     check(geometry::faces());
 }
 #[test]
-#[ignore = "Confirmed DWG loss (open engine's writer): MTEXT reference width (group 41) comes back 0"]
 fn mtext_placement() {
     check(geometry::mtext_placement());
 }
 #[test]
-#[ignore = "Confirmed DWG loss (open engine's writer): MTEXT reference width (group 41) comes back 0"]
 fn mtext_spacing() {
     check(geometry::mtext_spacing());
 }
 #[test]
-#[ignore = "Confirmed DWG loss (open engine's writer): MTEXT reference width (group 41) comes back 0"]
 fn mtext_contents() {
     check(geometry::mtext_contents());
 }
 #[test]
-#[ignore = "Confirmed DWG loss (open engine's writer): MTEXT reference width (group 41) comes back 0"]
 fn mtext_long() {
     check(geometry::mtext_long());
 }
@@ -249,12 +245,10 @@ fn leaders_3d() {
     check(geometry::leaders(true));
 }
 #[test]
-#[ignore = "Confirmed shared DXF loss: ATTRIB constant flag becomes false"]
 fn constant_attributes() {
     check(blocks::attributes("constant"));
 }
 #[test]
-#[ignore = "Confirmed DWG loss: a space following an MTEXT caret is consumed"]
 fn mtext_carets() {
     check(geometry::mtext_carets());
 }
@@ -263,7 +257,6 @@ fn block_transformations() {
     check(blocks::transformations());
 }
 #[test]
-#[ignore = "Confirmed DWG loss (open engine's writer): an array INSERT's row count comes back as 1"]
 fn block_arrays() {
     check(blocks::arrays());
 }
@@ -342,7 +335,6 @@ fn header_variables() {
     collection(collections::headers(), collections::assert_headers);
 }
 #[test]
-#[ignore = "Confirmed DWG loss: current layer CLAYER becomes 0"]
 fn header_current_layer() {
     collection(collections::named_header_reference("CLAYER"), collections::assert_headers);
 }
