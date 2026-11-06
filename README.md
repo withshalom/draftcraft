@@ -31,10 +31,10 @@
 </p>
 
 <p align="center">
-  <a href="https://draftcraft.dev/"><b>Try DraftCraft in your browser</b></a> ·
+  <a href="https://draftcraft.dev/"><b>Try DraftCraft™ in your browser</b></a> ·
   <a href="#screenshots">Screenshots</a> ·
   <a href="#downloads">Downloads</a> ·
-  <a href="#why-draftcraft">Why DraftCraft</a> ·
+  <a href="#why-draftcraft">Why DraftCraft™</a> ·
   <a href="#what-works-today">What works today</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#built-on-cadcraft">Built on CADCraft</a> ·
@@ -42,7 +42,7 @@
 </p>
 
 > [!NOTE]
-> **DraftCraft is a fork.** It's [CADCraft](https://github.com/storytold/cadcraft), the ArtCraft team's
+> **DraftCraft™ is a fork.** It's [CADCraft](https://github.com/storytold/cadcraft), the ArtCraft team's
 > open-source CAD application, grown toward native, lossless DWG by [WithShalom Studios](https://github.com/withshalom).
 > It is not made, endorsed or supported by the ArtCraft team, and it is not affiliated with Autodesk, Inc.
 > AutoCAD and DWG are Autodesk's trademarks, used only to say which files and workflows DraftCraft works with.
@@ -65,7 +65,7 @@
   </tr>
 </table>
 
-## Why DraftCraft
+## Why DraftCraft™
 
 - **The workflow you know.** Type `L`, click two points, type `@5<45`, press Enter. The command
   line, prompts with clickable `[Keywords]`, AutoComplete, object snaps, polar tracking, ortho,
@@ -317,7 +317,7 @@ The code stays CADCraft's wherever it can, so upstream's improvements keep mergi
 
 ## License and credits
 
-DraftCraft, like CADCraft, is dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your
+DraftCraft™, like CADCraft, is dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your
 option. Copyright (c) 2026 ArtCraft Team, the CADCraft contributors and WithShalom Studios. Required notices are
 in [NOTICE](NOTICE).
 
@@ -325,6 +325,9 @@ Bundled fonts, icons, images and other assets keep their own open licenses; each
 source and license in [ATTRIBUTION.md](ATTRIBUTION.md). DraftCraft's app icon and logo are original artwork
 (`packaging/compass-icon.py`, `packaging/draftcraft-logo.py`); CADCraft's icons, its single-stroke drafting font,
 its hatch patterns and its linetypes are original work, drawn or defined in code.
+
+DraftCraft™ and the DraftCraft logo are trademarks of WithShalom Studios. The licenses above cover the code, not the
+name or logo: you may fork and redistribute the code, but a modified version should not be presented as DraftCraft.
 
 The ArtCraft name, wordmark and logos in [`docs/brand/`](docs/brand/) are trademarks of the ArtCraft Team. Under
 [`docs/brand/LICENSE-brand.txt`](docs/brand/LICENSE-brand.txt), forks must remove them, so DraftCraft doesn't show
