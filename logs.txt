@@ -1,0 +1,24 @@
+DWG files to open: 3
+[dwg-1] mi201-r14.dwg (128080 bytes)
+[dwg-1] console.warning: The `integrity` attribute is currently ignored for preload destinations that do not support subresource integrity. See https://crbug.com/981419 for more information
+[dwg-1] console.warning: [egui_wgpu] egui-wgpu/src/lib.rs:478: Software rasterizer detected - loss of performance expected. backend: Gl, device_type: Cpu, name: "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)", driver_info: "WebGL 2.0 (OpenGL ES 3.0 Chromium)", subgroup_size: 4..=128, transient_saves_memory: None, limit_bucket: None
+[dwg-1] console.info: [cadcraft_ui_egui::gpu] ui-egui/src/gpu.rs:696: gpu canvas: target Rgba8Unorm, stencil None
+[dwg-1] console.info: [eframe::web::web_runner] eframe/src/web/web_runner.rs:98: event handlers installed.
+[dwg-1] file chooser answered
+[dwg-2] mi201-r2000.dwg (122610 bytes)
+[dwg-2] console.warning: The `integrity` attribute is currently ignored for preload destinations that do not support subresource integrity. See https://crbug.com/981419 for more information
+[dwg-2] console.warning: [egui_wgpu] egui-wgpu/src/lib.rs:478: Software rasterizer detected - loss of performance expected. backend: Gl, device_type: Cpu, name: "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)", driver_info: "WebGL 2.0 (OpenGL ES 3.0 Chromium)", subgroup_size: 4..=128, transient_saves_memory: None, limit_bucket: None
+[dwg-2] console.info: [cadcraft_ui_egui::gpu] ui-egui/src/gpu.rs:696: gpu canvas: target Rgba8Unorm, stencil None
+[dwg-2] console.info: [eframe::web::web_runner] eframe/src/web/web_runner.rs:98: event handlers installed.
+[dwg-2] file chooser answered
+[dwg-3] mi201-r2004.dwg (41944 bytes)
+[dwg-3] console.warning: The `integrity` attribute is currently ignored for preload destinations that do not support subresource integrity. See https://crbug.com/981419 for more information
+[dwg-3] console.warning: [egui_wgpu] egui-wgpu/src/lib.rs:478: Software rasterizer detected - loss of performance expected. backend: Gl, device_type: Cpu, name: "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)", driver_info: "WebGL 2.0 (OpenGL ES 3.0 Chromium)", subgroup_size: 4..=128, transient_saves_memory: None, limit_bucket: None
+[dwg-3] console.info: [cadcraft_ui_egui::gpu] ui-egui/src/gpu.rs:696: gpu canvas: target Rgba8Unorm, stencil None
+[dwg-3] console.info: [eframe::web::web_runner] eframe/src/web/web_runner.rs:98: event handlers installed.
+[dwg-3] file chooser answered
+[phone] console.warning: The `integrity` attribute is currently ignored for preload destinations that do not support subresource integrity. See https://crbug.com/981419 for more information
+[phone] console.warning: [egui_wgpu] egui-wgpu/src/lib.rs:478: Software rasterizer detected - loss of performance expected. backend: Gl, device_type: Cpu, name: "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)", driver_info: "WebGL 2.0 (OpenGL ES 3.0 Chromium)", subgroup_size: 4..=128, transient_saves_memory: None, limit_bucket: None
+[phone] console.info: [cadcraft_ui_egui::gpu] ui-egui/src/gpu.rs:696: gpu canvas: target Rgba8Unorm, stencil None
+[phone] console.info: [eframe::web::web_runner] eframe/src/web/web_runner.rs:98: event handlers installed.
+[phone] file chooser answered for mi201-r2004.dwg
