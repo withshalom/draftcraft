@@ -54,12 +54,16 @@ def logo(fonts, ink):
     x = ICON + GAP
     d1, a1 = word(os.path.join(fonts, "fonts", "source-sans-3", "SourceSans3-Bold.ttf"), "Draft", x, baseline, CAP)
     d2, a2 = word(os.path.join(fonts, "fonts", "source-sans-3", "SourceSans3-Regular.ttf"), "Craft", x + a1 + CAP * 0.04, baseline, CAP)
-    width = x + a1 + CAP * 0.04 + a2 + 8
+    # The trademark sign: Regular, a third of the cap height, its top level with the capitals.
+    tx = x + a1 + CAP * 0.04 + a2 + CAP * 0.05
+    tm = word(os.path.join(fonts, "fonts", "source-sans-3", "SourceSans3-Regular.ttf"), "\u2122", tx, baseline - CAP * 0.62, CAP * 0.62)
+    d3, a3 = tm
+    width = tx + a3 + 8
     k = ICON / 1024
     return (
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width:.0f} {ICON}" width="{width:.0f}" height="{ICON}" role="img" aria-label="DraftCraft">'
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width:.0f} {ICON}" width="{width:.0f}" height="{ICON}" role="img" aria-label="DraftCraft™">'
         f'<g transform="scale({k:.6f})">{inner}</g>'
-        f'<path fill="{ink}" d="{d1}"/><path fill="{ink}" d="{d2}"/></svg>\n'
+        f'<path fill="{ink}" d="{d1}"/><path fill="{ink}" d="{d2}"/><path fill="{ink}" d="{d3}"/></svg>\n'
     )
 
 
