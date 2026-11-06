@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/draftcraft-logo-dark.svg">
-    <img src="docs/images/draftcraft-logo.svg" height="140" alt="DraftCraft™: a drafting compass that has just drawn an arc, on a dark blueprint-blue tile with a drafting grid, beside the name DraftCraft with Draft in bold">
+    <img src="docs/images/draftcraft-logo.svg" height="140" alt="DraftCraft: a drafting compass that has just drawn an arc, on a dark blueprint-blue tile with a drafting grid, beside the name DraftCraft with Draft in bold">
   </picture>
 </p>
 
