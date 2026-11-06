@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Repackage a DWGCraft Linux tarball as a single-file Flatpak bundle:
+# Repackage a DraftCraft Linux tarball as a single-file Flatpak bundle:
 #
-#   $DIST/dwgcraft-<version>-linux-<arch>.flatpak
+#   $DIST/draftcraft-<version>-linux-<arch>.flatpak
 #
 # Usage: packaging/linux/flatpak-bundle.sh [--no-test] [TARBALL]
 #
-# TARBALL defaults to $DIST/dwgcraft-<version>-linux-<arch>.tar.gz from package.sh. The bundle
+# TARBALL defaults to $DIST/draftcraft-<version>-linux-<arch>.tar.gz from package.sh. The bundle
 # is built for the host architecture (x86_64 or aarch64), which must match the tarball's.
 # Needs flatpak, flatpak-builder and the SVG pixbuf loader (librsvg2-common) for the host's
 # `appstreamcli compose`; the freedesktop runtime and SDK named in the manifest are
 # installed per-user from Flathub. Unless --no-test, the bundle is then installed per-user and
-# `dwgcraft-cli --version` is run inside the sandbox as a smoke test.
-# Manifest: packaging/linux/flatpak/dev.cadcraft.dwg.bundle.yml.
+# `draftcraft-cli --version` is run inside the sandbox as a smoke test.
+# Manifest: packaging/linux/flatpak/dev.cadcraft.draft.bundle.yml.
 set -euo pipefail
 # shellcheck source=../env.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../env.sh"
@@ -19,10 +19,12 @@ HERE="$ROOT/packaging/linux"
 FLATHUB=https://dl.flathub.org/repo/flathub.flatpakrepo
 
 TEST=1
+OCI=0
 TARBALL=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-test) TEST=0; shift ;;
+    --oci) OCI=1; shift ;;
     -h | --help) sed -n '2,14p' "$0"; exit 0 ;;
     -*) echo "unknown argument: $1" >&2; exit 2 ;;
     *) TARBALL="$1"; shift ;;
@@ -60,6 +62,12 @@ OUT="$DIST/$BASENAME.flatpak"
 # --runtime-repo lets `flatpak install` fetch the freedesktop runtime from Flathub if missing.
 flatpak build-bundle --runtime-repo="$FLATHUB" "$WORK/repo" "$OUT" "$APP_ID" stable
 echo "wrote $OUT"
+if [[ "$OCI" = 1 ]]; then
+  OUT_OCI="$DIST/$BASENAME-oci"
+  rm -rf "$OUT_OCI"
+  flatpak build-bundle --oci "$WORK/repo" "$OUT_OCI" "$APP_ID" stable
+  echo "wrote OCI layout to $OUT_OCI"
+fi
 
 if [[ "$TEST" = 1 ]]; then
   flatpak install --user -y --noninteractive --reinstall "$OUT"

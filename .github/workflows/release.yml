@@ -1,13 +1,13 @@
-# DWGCraft's release: builds every installer and drafts a GitHub release with them.
+# DraftCraft's release: builds every installer and drafts a GitHub release with them.
 #
 # A copy of storytold/craft-common-actions' shared release workflow (.github/workflows/release.yml
 # at fa5ef18780cf5e7d5d3b8de068de56cffc83cac5), adapted for this fork:
-# - git dependencies may come from github.com/withshalom too (DWGCraft's open DWG engine);
+# - git dependencies may come from github.com/withshalom too (DraftCraft's open DWG engine);
 # - the shared actions are pinned to that commit, not followed at @main;
 # - standard GitHub runners only (the shared workflow's macOS job uses a paid larger runner);
 # - without signing secrets the builds warn and ship unsigned instead of failing;
 # - no FreeBSD or headless server builds.
-# Packages, files and installers are DWGCraft's (packaging/env.sh).
+# Packages, files and installers are DraftCraft's (packaging/env.sh).
 #
 # Run it: push to the `release` branch, or Actions > Release > Run workflow.
 name: Release
@@ -91,7 +91,7 @@ jobs:
         uses: storytold/craft-common-actions/actions/resolve-version@fa5ef18780cf5e7d5d3b8de068de56cffc83cac5
         with:
           input-version: ${{ inputs.version }}
-          app-title: DWGCraft
+          app-title: DraftCraft
 
   macos:
     timeout-minutes: 90
@@ -663,23 +663,14 @@ jobs:
       - uses: storytold/craft-common-actions/actions/install-trunk@fa5ef18780cf5e7d5d3b8de068de56cffc83cac5
         with:
           trunk-version: 0.21.14
-      - name: Check out craft-fonts
-        if: false
-        uses: storytold/craft-common-actions/actions/checkout-craft-fonts@fa5ef18780cf5e7d5d3b8de068de56cffc83cac5
-        with:
-          ref: b076417b5880bd4154bd22f00695b1d28c6bea83
+      # Upstream's web release also builds with craft-fonts; DraftCraft's leaves that build out
+      # (it was disabled with `if: false`, which actionlint rejects).
       - name: Check out craft-i18n
         uses: storytold/craft-common-actions/actions/checkout-craft-i18n@fa5ef18780cf5e7d5d3b8de068de56cffc83cac5
       - name: Apply version override
         if: inputs.version != ''
         run: cargo xtask version set "$VERSION"
       - name: Build and zip
-        run: packaging/web/package.sh
-      - name: Build and zip (with craft-fonts)
-        if: false
-        env:
-          CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
-          CRAFT_FONTS_REQUIRED: "1"
         run: packaging/web/package.sh
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -808,12 +799,12 @@ jobs:
       - uses: storytold/craft-common-actions/actions/draft-release@fa5ef18780cf5e7d5d3b8de068de56cffc83cac5
         with:
           version: ${{ needs.version.outputs.version }}
-          app-title: DWGCraft
+          app-title: DraftCraft
           prerelease: ${{ needs.version.outputs.prerelease }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
       # The README's download buttons link to releases/latest/download/<name>, which GitHub answers
       # with the newest release's file of that name: so the main installers are also uploaded under
-      # names without the version (dwgcraft-windows-x64.msi). The update check ignores these: it
+      # names without the version (draftcraft-windows-x64.msi). The update check ignores these: it
       # only reads names that carry a version.
       - name: Add the download buttons' files
         shell: bash
@@ -828,11 +819,11 @@ jobs:
           for target in windows-x64.msi windows-arm64.msi windows-x86.msi macos-universal.dmg \
                         linux-x86_64.AppImage linux-aarch64.AppImage linux-x86_64.deb linux-aarch64.deb \
                         linux-x86_64.rpm linux-aarch64.rpm linux-x86_64.flatpak linux-aarch64.flatpak; do
-            src="dwgcraft-$VERSION-$target"
+            src="draftcraft-$VERSION-$target"
             if [ ! -f "$src" ]; then
               echo "::error::$src is missing from the release"
               exit 1
             fi
-            cp -- "$src" "$RUNNER_TEMP/buttons/dwgcraft-$target"
+            cp -- "$src" "$RUNNER_TEMP/buttons/draftcraft-$target"
           done
           gh release upload "v$VERSION" --clobber -- "$RUNNER_TEMP"/buttons/*

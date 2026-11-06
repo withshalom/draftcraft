@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Build and package DWGCraft for Linux (<arch> is x86_64 or aarch64, or riscv64 when cross-compiling):
+# Build and package DraftCraft for Linux (<arch> is x86_64 or aarch64, or riscv64 when cross-compiling):
 #
-#   $DIST/dwgcraft-<version>-linux-<arch>.AppImage  any distro with glibc >= the build host's
-#   $DIST/dwgcraft-<version>-linux-<arch>.AppImage.zsync  delta updates (needs zsyncmake)
-#   $DIST/dwgcraft-<version>-linux-<arch>.deb       Debian, Ubuntu, Mint, Pop!_OS, ...
-#   $DIST/dwgcraft-<version>-linux-<arch>.rpm       Fedora, openSUSE, RHEL, ...
-#   $DIST/dwgcraft-<version>-linux-<arch>.tar.gz    plain FHS-style tree (bin/, share/)
+#   $DIST/draftcraft-<version>-linux-<arch>.AppImage  any distro with glibc >= the build host's
+#   $DIST/draftcraft-<version>-linux-<arch>.AppImage.zsync  delta updates (needs zsyncmake)
+#   $DIST/draftcraft-<version>-linux-<arch>.deb       Debian, Ubuntu, Mint, Pop!_OS, ...
+#   $DIST/draftcraft-<version>-linux-<arch>.rpm       Fedora, openSUSE, RHEL, ...
+#   $DIST/draftcraft-<version>-linux-<arch>.tar.gz    plain FHS-style tree (bin/, share/)
 #
-# The cargo binaries are `cadcraft` and `cadcraft-cli`; they are installed as `dwgcraft` and
-# `dwgcraft-cli` (names, ids and paths from packaging/env.sh).
+# The cargo binaries are `cadcraft` and `cadcraft-cli`; they are installed as `draftcraft` and
+# `draftcraft-cli` (names, ids and paths from packaging/env.sh).
 #
 # Usage: packaging/linux/package.sh [--skip-build] [--formats "appimage deb rpm tar"]
 #

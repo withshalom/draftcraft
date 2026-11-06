@@ -2,15 +2,10 @@
 //! Updates… (desktop only; the web build is always the latest). The flow itself is
 //! `craft_update::updater::Updater`.
 
-use craft_update::App;
 use craft_update::updater::{Action, Status, Updater};
+use craft_update::{CheckResultDialog, CheckResultResponse};
 
 use crate::CadApp;
-
-/// DWGCraft as the update check knows it: its own releases (withshalom/dwgcraft), whose files are
-/// named `dwgcraft-<version>-…` (`packaging/env.sh`'s `APP_SLUG`). Not the suite's CADCraft entry,
-/// which would offer CADCraft's releases in place of DWGCraft's.
-pub const APP: App = App::new("dwgcraft", crate::i18n::PRODUCT_NAME, "DWG drafting", "withshalom/dwgcraft");
 
 /// The version this build reports to the update check.
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -22,11 +17,15 @@ pub struct Runtime {
     enabled: bool,
     /// Help ▸ Check for Updates… was chosen; the next frame's `tick` starts it with the context.
     check_requested: bool,
+    /// The check-result dialog is open (from a requested check until it is closed).
+    result_open: bool,
+    /// The current result was already written to the command history.
+    result_echoed: bool,
 }
 
 impl Default for Runtime {
     fn default() -> Self {
-        Self { updater: Updater::new(&APP, VERSION), enabled: false, check_requested: false }
+        Self { updater: Updater::new(&crate::UPDATE_APP, VERSION), enabled: false, check_requested: false, result_open: false, result_echoed: false }
     }
 }
 
@@ -37,9 +36,11 @@ impl CadApp {
     }
 }
 
-/// Help ▸ Check for Updates…: check now, and say so when there is nothing newer.
+/// Help ▸ Check for Updates…: check now, and show the result when there is nothing newer.
 pub fn check_now(app: &mut CadApp) {
     app.updates_rt.check_requested = true;
+    app.updates_rt.result_open = true;
+    app.updates_rt.result_echoed = false;
 }
 
 /// Start the checks and collect the answers.
@@ -56,8 +57,16 @@ pub fn tick(app: &mut CadApp, ctx: &egui::Context) {
         Status::Failed(_) => Some(crate::tl!("Could not check for updates.")),
         Status::Idle | Status::Checking => None,
     };
-    if let Some(message) = outcome {
+    let Some(message) = outcome else {
+        // A check that found an update leaves `Idle`; the prompt takes over from the dialog.
+        if rt.result_open && matches!(rt.updater.status(), Status::Idle) {
+            rt.result_open = false;
+        }
+        return;
+    };
+    if !rt.result_open {
         rt.updater.dismiss_status();
+    } else if !std::mem::replace(&mut rt.result_echoed, true) {
         app.session.echo(message);
     }
 }
@@ -66,6 +75,20 @@ pub fn tick(app: &mut CadApp, ctx: &egui::Context) {
 pub fn show(app: &mut CadApp, ctx: &egui::Context) {
     // The restart helper is scheduled before the app closes, so no update starts over unsaved work.
     let clean = !app.session.docs.iter().any(|d| d.is_dirty());
+    let rt = &mut app.updates_rt;
+    if rt.result_open {
+        match CheckResultDialog::new(&crate::UPDATE_APP, VERSION).show(ctx, rt.updater.status()) {
+            CheckResultResponse::Close => {
+                rt.result_open = false;
+                rt.updater.dismiss_status();
+            }
+            CheckResultResponse::CheckAgain => {
+                rt.result_echoed = false;
+                rt.check_requested = true;
+            }
+            CheckResultResponse::None => {}
+        }
+    }
     match app.updates_rt.updater.show_if(ctx, clean) {
         Action::OpenUrl(url) => ctx.open_url(egui::OpenUrl::new_tab(url)),
         // The guarded close path asks about unsaved changes; the restart helper relaunches once the
@@ -77,14 +100,14 @@ pub fn show(app: &mut CadApp, ctx: &egui::Context) {
 
 #[cfg(test)]
 mod tests {
-    use super::APP;
+    use crate::UPDATE_APP as APP;
 
     #[test]
-    fn updates_come_from_dwgcrafts_own_releases() {
-        assert_eq!(APP.repo, "withshalom/dwgcraft");
+    fn updates_come_from_draftcrafts_own_releases() {
+        assert_eq!(APP.repo, "withshalom/draftcraft");
         assert_eq!(crate::i18n::REPOSITORY, APP.repo_url());
-        assert_eq!(APP.name, "DWGCraft");
-        // The release files' stem (packaging/env.sh: APP_SLUG=dwgcraft).
+        assert_eq!(APP.name, "DraftCraft");
+        // The release files' stem (packaging/env.sh: APP_SLUG=draftcraft).
         let env = include_str!("../../../packaging/env.sh");
         let slug = env.lines().find_map(|l| l.trim().strip_prefix("export APP_SLUG=")).and_then(|v| v.split_whitespace().next());
         assert_eq!(slug, Some(APP.id));

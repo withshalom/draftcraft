@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Build, sign and (optionally) notarize the macOS release artifacts:
 #
-#   $DIST/dwgcraft-<version>-macos-<arch>.dmg          DWGCraft.app on a drag-to-Applications DMG
-#   $DIST/dwgcraft-cli-<version>-macos-<arch>.zip      the headless CLI (dwgcraft-cli)
+#   $DIST/draftcraft-<version>-macos-<arch>.dmg          DraftCraft.app on a drag-to-Applications DMG
+#   $DIST/draftcraft-cli-<version>-macos-<arch>.zip      the headless CLI (draftcraft-cli)
 #
-# The cargo binaries are `cadcraft` and `cadcraft-cli`; they ship as DWGCraft.app and dwgcraft-cli.
+# The cargo binaries are `cadcraft` and `cadcraft-cli`; they ship as DraftCraft.app and draftcraft-cli.
 #
 # Usage: packaging/macos/package.sh [--arch universal|aarch64|x86_64] [--skip-build]
 #
@@ -114,7 +114,7 @@ notarize() {
   fi
 }
 
-# ---- DWGCraft.app ----------------------------------------------------------------------------
+# ---- DraftCraft.app ----------------------------------------------------------------------------
 echo "==> assembling $APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 # Executable and icon carry the display name (CFBundleExecutable / CFBundleIconFile).
@@ -151,7 +151,7 @@ mkdir -p "$STAGE"
 ditto "$APP" "$STAGE/$APP_TITLE.app"
 ln -s /Applications "$STAGE/Applications"
 # CADCraft's designed Finder window (packaging/macos/dmg) names CADCraft.app and the CADCraft volume
-# in its layout, so DWGCraft's DMG opens as a plain window: the app and the Applications link.
+# in its layout, so DraftCraft's DMG opens as a plain window: the app and the Applications link.
 rm -f "$DMG" "$WORK/raw.dmg"
 # makehybrid + convert builds the image without attaching a device, unlike `create -srcfolder`,
 # which is flaky on CI runners ("Resource busy") and hangs in sandboxed sessions.

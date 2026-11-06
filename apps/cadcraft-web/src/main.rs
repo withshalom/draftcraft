@@ -14,6 +14,9 @@ pub mod download;
 #[cfg(target_arch = "wasm32")]
 mod host;
 
+#[cfg(any(target_arch = "wasm32", test))]
+mod panel_layout;
+
 #[cfg(target_arch = "wasm32")]
 mod web {
     use cadcraft_engine::Session;
@@ -59,10 +62,14 @@ mod web {
             self.0.raw_input_hook(ctx, raw);
             cadcraft_ui_egui::cmdline::capture_tab(ctx, raw);
         }
-        /// Preferences (interface theme and language) survive reloads; egui state is not kept.
+        /// Preferences and validated panel placement survive reloads; egui memory is not kept.
         fn save(&mut self, storage: &mut dyn eframe::Storage) {
             storage.set_string(cadcraft_ui_egui::options::PROFILE_KEY, self.0.profile_json());
             storage.set_string(cadcraft_ui_egui::PREFS_KEY, self.0.prefs_json());
+            match crate::panel_layout::save(&self.0.ui) {
+                Ok(layout) => storage.set_string(crate::panel_layout::KEY, layout),
+                Err(error) => log::warn!("panel layout was not saved: {error}"),
+            }
         }
         fn persist_egui_memory(&self) -> bool {
             false
@@ -112,6 +119,7 @@ mod web {
             write: |d, name| cadcraft_io::write(d, name).map_err(|e| e.to_string()),
             plot: Some(|d, space, opts| cadcraft_io::plotter::plot(d, space, opts).map_err(|e| e.to_string())),
         });
+        cadcraft_engine::cmd::file::set_image_decoder(|b| cadcraft_io::raster::decode(b).map_err(|e| e.to_string()));
         cadcraft_engine::cmd::file::set_write_as(|d, name, o| {
             cadcraft_io::write_with(d, name, &cadcraft_io::SaveOptions { version: o.version, binary: o.binary }).map_err(|e| e.to_string())
         });
@@ -160,6 +168,11 @@ mod web {
                         if let Some(prefs) = cc.storage.and_then(|s| s.get_string(cadcraft_ui_egui::PREFS_KEY)) {
                             app.load_prefs(&prefs);
                         }
+                        if let Some(layout) = cc.storage.and_then(|s| s.get_string(crate::panel_layout::KEY))
+                            && let Err(error) = crate::panel_layout::restore(&mut app.ui, &layout)
+                        {
+                            log::warn!("panel layout was not restored: {error}");
+                        }
                         // `?cpu`: no render state for the app, so the canvas draws with egui shapes.
                         if !crate::wants_cpu(&query())
                             && let Some(rs) = &cc.wgpu_render_state
@@ -196,7 +209,7 @@ mod web {
                 match result {
                     Ok(()) => el.remove(),
                     Err(e) => {
-                        el.set_inner_html(&format!("<p>DWGCraft failed to start: {e:?}</p><p>A browser with WebGPU or WebGL2 is required.</p>"))
+                        el.set_inner_html(&format!("<p>DraftCraft failed to start: {e:?}</p><p>A browser with WebGPU or WebGL2 is required.</p>"))
                     }
                 }
             }
@@ -211,11 +224,11 @@ fn wants_cpu(query: &str) -> bool {
 }
 
 /// The browser tab title: the open drawing's file name, a bullet once it has unsaved changes,
-/// and the app name (`drawing.dwg • — DWGCraft`), or just the app name with no drawing. An
+/// and the app name (`drawing.dwg • — DraftCraft`), or just the app name with no drawing. An
 /// embedding page (`?host=parent`) reads it to tell which drawing opened and whether it is dirty.
 /// The name the browser tab shows (the web build doesn't link the interface's name lookup here).
 #[cfg(any(target_arch = "wasm32", test))]
-const APP_NAME: &str = "DWGCraft";
+const APP_NAME: &str = "DraftCraft";
 
 #[cfg(any(target_arch = "wasm32", test))]
 fn document_title(name: Option<&str>, dirty: bool) -> String {
@@ -286,12 +299,12 @@ mod tests {
     /// bullet; a blank or missing name leaves the app name alone and never shows a bullet.
     #[test]
     fn viewport_title_names_the_document_and_marks_unsaved_changes() {
-        assert_eq!(document_title(Some("drawing.dwg"), false), "drawing.dwg — DWGCraft");
-        assert_eq!(document_title(Some("drawing.dwg"), true), "drawing.dwg • — DWGCraft");
-        assert_eq!(document_title(Some("Drawing1"), false), "Drawing1 — DWGCraft");
-        assert_eq!(document_title(None, false), "DWGCraft");
-        assert_eq!(document_title(None, true), "DWGCraft");
-        assert_eq!(document_title(Some("   "), true), "DWGCraft");
+        assert_eq!(document_title(Some("drawing.dwg"), false), "drawing.dwg — DraftCraft");
+        assert_eq!(document_title(Some("drawing.dwg"), true), "drawing.dwg • — DraftCraft");
+        assert_eq!(document_title(Some("Drawing1"), false), "Drawing1 — DraftCraft");
+        assert_eq!(document_title(None, false), "DraftCraft");
+        assert_eq!(document_title(None, true), "DraftCraft");
+        assert_eq!(document_title(Some("   "), true), "DraftCraft");
     }
 
     /// Guards the change signal: a title is sent on open, rename, dirty change and close, but
@@ -299,17 +312,17 @@ mod tests {
     #[test]
     fn viewport_title_follows_open_rename_and_dirty_changes_only() {
         let mut sent = None;
-        assert_eq!(title_to_send(&mut sent, Some("drawing.dwg"), false).as_deref(), Some("drawing.dwg — DWGCraft"));
+        assert_eq!(title_to_send(&mut sent, Some("drawing.dwg"), false).as_deref(), Some("drawing.dwg — DraftCraft"));
         // The page already has it: send nothing.
         assert_eq!(title_to_send(&mut sent, Some("drawing.dwg"), false), None);
         // Unsaved changes add the bullet.
-        assert_eq!(title_to_send(&mut sent, Some("drawing.dwg"), true).as_deref(), Some("drawing.dwg • — DWGCraft"));
+        assert_eq!(title_to_send(&mut sent, Some("drawing.dwg"), true).as_deref(), Some("drawing.dwg • — DraftCraft"));
         // A rename shows the new name.
-        assert_eq!(title_to_send(&mut sent, Some("plan.dwg"), true).as_deref(), Some("plan.dwg • — DWGCraft"));
+        assert_eq!(title_to_send(&mut sent, Some("plan.dwg"), true).as_deref(), Some("plan.dwg • — DraftCraft"));
         // Saving clears it again.
-        assert_eq!(title_to_send(&mut sent, Some("plan.dwg"), false).as_deref(), Some("plan.dwg — DWGCraft"));
+        assert_eq!(title_to_send(&mut sent, Some("plan.dwg"), false).as_deref(), Some("plan.dwg — DraftCraft"));
         // Closing the last drawing leaves the app name only.
-        assert_eq!(title_to_send(&mut sent, None, false).as_deref(), Some("DWGCraft"));
+        assert_eq!(title_to_send(&mut sent, None, false).as_deref(), Some("DraftCraft"));
         assert_eq!(title_to_send(&mut sent, None, false), None);
     }
 
@@ -327,6 +340,6 @@ mod tests {
         assert!(push_title(&mut sent, Some("drawing.dwg"), true, |title| written.push(title.to_owned())));
         // Closing the drawing writes the app name.
         assert!(push_title(&mut sent, None, false, |title| written.push(title.to_owned())));
-        assert_eq!(written, ["drawing.dwg — DWGCraft", "drawing.dwg • — DWGCraft", "DWGCraft"]);
+        assert_eq!(written, ["drawing.dwg — DraftCraft", "drawing.dwg • — DraftCraft", "DraftCraft"]);
     }
 }

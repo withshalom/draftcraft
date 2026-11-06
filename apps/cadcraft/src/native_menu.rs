@@ -52,7 +52,7 @@ impl NativeMenu {
         let mut counter = 0usize;
         let app_menu = Submenu::new(i18n::PRODUCT_NAME, true);
         let about = MenuItem::with_id("cc-about", i18n::tr(language, "About CADCraft"), true, None);
-        let github = MenuItem::with_id("cc-github", i18n::tr(language, "DWGCraft on GitHub…"), true, None);
+        let github = MenuItem::with_id("cc-github", i18n::tr(language, "DraftCraft on GitHub…"), true, None);
         let predefined = vec![
             ("Services", PredefinedMenuItem::services(Some(i18n::tr(language, "Services")))),
             ("Hide CADCraft", PredefinedMenuItem::hide(Some(i18n::tr(language, "Hide CADCraft")))),
@@ -70,7 +70,7 @@ impl NativeMenu {
             }
         }
         items.insert("cc-about".into(), ("ui.dialog.about".into(), "About CADCraft".into(), about));
-        items.insert("cc-github".into(), ("ui.github".into(), "DWGCraft on GitHub…".into(), github));
+        items.insert("cc-github".into(), ("ui.github".into(), "DraftCraft on GitHub…".into(), github));
         items.insert("cc-settings".into(), ("options".into(), "Settings...".into(), settings));
         let _ = menu.append(&app_menu);
         for (title, entries) in menus::tree(app) {

@@ -15,13 +15,13 @@ section: graphics
 priority: optional
 maintainer: ${APP_MAINTAINER}
 vendor: WithShalom Studios
-homepage: https://dwg.cadcraft.dev
+homepage: https://draftcraft.dev
 license: MIT OR Apache-2.0
 description: |-
-  DWGCraft: open-source computer-aided design and drafting that keeps DWG files
+  DraftCraft: open-source computer-aided design and drafting that keeps DWG files
   whole. Draft, dimension and plot 2D drawings with a familiar command line, object
   snaps, layers, dimensions, hatches and blocks. Opens and saves DXF and DWG; exports
-  SVG and PNG. Includes dwgcraft-cli, a headless converter and command runner.
+  SVG and PNG. Includes draftcraft-cli, a headless converter and command runner.
   Built on CADCraft by the ArtCraft team.
 
 # The binaries link only glibc and libgcc_s directly. Windowing (X11/Wayland, xkbcommon) and the

@@ -1,6 +1,6 @@
 {
-  "id": "dwgcraft",
-  "name": "DWGCraft",
+  "id": "draftcraft",
+  "name": "DraftCraft",
   "suiteFolder": "WithShalom Studios",
   "upgradeCode": "2F5FC840-DC92-4B1E-92DB-C69EC51C423A",
   "sources": [
@@ -12,43 +12,43 @@
     "UI"
   ],
   "payloads": [
-    "dwgcraft-cli.exe",
-    "dwgcraft.exe"
+    "draftcraft-cli.exe",
+    "draftcraft.exe"
   ],
   "registry": [
     [
       "-1",
-      "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\dwgcraft.exe",
+      "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\draftcraft.exe",
       "",
       "[#CadcraftExe]"
     ],
     [
       "-1",
-      "Software\\Classes\\Applications\\dwgcraft.exe\\shell\\open\\command",
+      "Software\\Classes\\Applications\\draftcraft.exe\\shell\\open\\command",
       "",
       "\"[#CadcraftExe]\" \"%1\""
     ],
     [
       "-1",
       "Software\\Classes\\.dxf\\OpenWithProgids",
-      "DWGCraft.Drawing",
+      "DraftCraft.Drawing",
       ""
     ],
     [
       "-1",
       "Software\\Classes\\.dwg\\OpenWithProgids",
-      "DWGCraft.Drawing",
+      "DraftCraft.Drawing",
       ""
     ],
     [
       "-1",
-      "Software\\Classes\\DWGCraft.Drawing\\shell\\open\\command",
+      "Software\\Classes\\DraftCraft.Drawing\\shell\\open\\command",
       "",
       "\"[#CadcraftExe]\" \"%1\""
     ],
     [
       "-1",
-      "Software\\WithShalom Studios\\DWGCraft",
+      "Software\\WithShalom Studios\\DraftCraft",
       "DesktopShortcut",
       "1"
     ]

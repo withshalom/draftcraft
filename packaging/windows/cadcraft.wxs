@@ -3,23 +3,23 @@
   <?ifndef HasCraftFontLicences ?>
   <?define HasCraftFontLicences=0 ?>
   <?endif?>
-  <Package Name="DWGCraft" Manufacturer="WithShalom Studios" Version="$(var.Version)" UpgradeCode="2F5FC840-DC92-4B1E-92DB-C69EC51C423A" Scope="perUserOrMachine" Compressed="yes" Language="1033">
-    <SummaryInformation Description="DWGCraft computer-aided design" Manufacturer="WithShalom Studios" />
+  <Package Name="DraftCraft" Manufacturer="WithShalom Studios" Version="$(var.Version)" UpgradeCode="2F5FC840-DC92-4B1E-92DB-C69EC51C423A" Scope="perUserOrMachine" Compressed="yes" Language="1033">
+    <SummaryInformation Description="DraftCraft computer-aided design" Manufacturer="WithShalom Studios" />
     <?include $(sys.SOURCEFILEDIR)install-policy.wxi?>
     <!-- Same-version upgrades let successive pre-releases of one X.Y.Z replace each other
          (MSI versions are numeric, so 1.2.3-rc.1 and 1.2.3-rc.2 are both 1.2.3). -->
-    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of DWGCraft is already installed." />
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of DraftCraft is already installed." />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
     <Icon Id="CadcraftIcon.ico" SourceFile="$(var.IconPath)" />
     <Property Id="ARPPRODUCTICON" Value="CadcraftIcon.ico" />
-    <Property Id="ARPURLINFOABOUT" Value="https://dwg.cadcraft.dev" />
-    <Property Id="ARPURLUPDATEINFO" Value="https://dwg.cadcraft.dev" />
-    <Property Id="ARPHELPLINK" Value="https://github.com/withshalom/dwgcraft" />
+    <Property Id="ARPURLINFOABOUT" Value="https://draftcraft.dev" />
+    <Property Id="ARPURLUPDATEINFO" Value="https://draftcraft.dev" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/withshalom/draftcraft" />
 
     <StandardDirectory Id="ProgramFiles6432Folder">
       <Directory Id="CraftSuiteFolder" Name="WithShalom Studios">
-        <Directory Id="INSTALLFOLDER" Name="DWGCraft" />
+        <Directory Id="INSTALLFOLDER" Name="DraftCraft" />
       </Directory>
     </StandardDirectory>
     <StandardDirectory Id="ProgramMenuFolder" />
@@ -39,14 +39,14 @@
 
     <UIRef Id="CadcraftUI" />
 
-    <Feature Id="Main" Title="DWGCraft" Level="1">
+    <Feature Id="Main" Title="DraftCraft" Level="1">
       <?if $(var.HasCraftFontLicences) = 1 ?>
       <ComponentGroupRef Id="CraftFontLicences" />
       <?endif?>
       <ComponentGroupRef Id="CadcraftFiles" />
     </Feature>
-  <Property Id="CRAFT_OPTION_1_M" Secure="yes"><RegistrySearch Id="CRAFT_OPTION_1_MSearch" Root="HKLM" Key="Software\WithShalom Studios\DWGCraft" Name="DesktopShortcut" Type="raw" />
-    </Property><SetProperty Id="PREVIOUSDESKTOPSHORTCUT" Action="CraftLoadOption1M" Value="[CRAFT_OPTION_1_M]" After="LaunchConditions" Sequence="both" Condition="ALLUSERS = 1" /><Property Id="CRAFT_OPTION_1_U" Secure="yes"><RegistrySearch Id="CRAFT_OPTION_1_USearch" Root="HKCU" Key="Software\WithShalom Studios\DWGCraft" Name="DesktopShortcut" Type="raw" />
+  <Property Id="CRAFT_OPTION_1_M" Secure="yes"><RegistrySearch Id="CRAFT_OPTION_1_MSearch" Root="HKLM" Key="Software\WithShalom Studios\DraftCraft" Name="DesktopShortcut" Type="raw" />
+    </Property><SetProperty Id="PREVIOUSDESKTOPSHORTCUT" Action="CraftLoadOption1M" Value="[CRAFT_OPTION_1_M]" After="LaunchConditions" Sequence="both" Condition="ALLUSERS = 1" /><Property Id="CRAFT_OPTION_1_U" Secure="yes"><RegistrySearch Id="CRAFT_OPTION_1_USearch" Root="HKCU" Key="Software\WithShalom Studios\DraftCraft" Name="DesktopShortcut" Type="raw" />
     </Property><SetProperty Id="PREVIOUSDESKTOPSHORTCUT" Action="CraftLoadOption1U" Value="[CRAFT_OPTION_1_U]" After="CraftLoadOption1M" Sequence="both" Condition="ALLUSERS &lt;&gt; 1" /><SetProperty Id="PREVIOUSDESKTOPSHORTCUT" Action="CraftLoadLegacyOption1" Value="[CRAFT_OPTION_1_U]" After="CraftLoadOption1U" Sequence="both" Condition="ALLUSERS = 1 AND NOT PREVIOUSDESKTOPSHORTCUT AND CRAFT_OPTION_1_U" /></Package>
 
   <Fragment>
@@ -57,28 +57,28 @@
     <?endif?>
     <ComponentGroup Id="CadcraftFiles" Directory="INSTALLFOLDER">
       <Component Id="CadcraftApp" Guid="2AC18056-48DE-4079-AB79-4FDEF4FBB075">
-        <File Id="CadcraftExe" Source="$(var.BinDir)\dwgcraft.exe" KeyPath="yes">
-          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="DWGCraft" Description="DWGCraft computer-aided design" WorkingDirectory="INSTALLFOLDER" Advertise="yes" Icon="CadcraftIcon.ico" IconIndex="0" />
+        <File Id="CadcraftExe" Source="$(var.BinDir)\draftcraft.exe" KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="DraftCraft" Description="DraftCraft computer-aided design" WorkingDirectory="INSTALLFOLDER" Advertise="yes" Icon="CadcraftIcon.ico" IconIndex="0" />
         </File>
 
-        <RegistryValue Root="HKMU" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\dwgcraft.exe" Value="[#CadcraftExe]" Type="string" />
-        <RegistryValue Root="HKMU" Key="Software\Classes\Applications\dwgcraft.exe\shell\open\command" Value="&quot;[#CadcraftExe]&quot; &quot;%1&quot;" Type="string" />
-        <RegistryValue Root="HKMU" Key="Software\Classes\.dxf\OpenWithProgids" Name="DWGCraft.Drawing" Value="" Type="string" />
-        <RegistryValue Root="HKMU" Key="Software\Classes\.dwg\OpenWithProgids" Name="DWGCraft.Drawing" Value="" Type="string" />
-        <RegistryValue Root="HKMU" Key="Software\Classes\DWGCraft.Drawing\shell\open\command" Value="&quot;[#CadcraftExe]&quot; &quot;%1&quot;" Type="string" />
-      <RegistryValue Root="HKMU" Key="Software\DWGCraft" Name="InstallDir" Value="[INSTALLFOLDER]" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\draftcraft.exe" Value="[#CadcraftExe]" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\Applications\draftcraft.exe\shell\open\command" Value="&quot;[#CadcraftExe]&quot; &quot;%1&quot;" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\.dxf\OpenWithProgids" Name="DraftCraft.Drawing" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\.dwg\OpenWithProgids" Name="DraftCraft.Drawing" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\DraftCraft.Drawing\shell\open\command" Value="&quot;[#CadcraftExe]&quot; &quot;%1&quot;" Type="string" />
+      <RegistryValue Root="HKMU" Key="Software\DraftCraft" Name="InstallDir" Value="[INSTALLFOLDER]" Type="string" />
       </Component>
 
       <Component Id="CadcraftCli">
-        <File Id="CadcraftCliExe" Source="$(var.BinDir)\dwgcraft-cli.exe" KeyPath="yes" />
+        <File Id="CadcraftCliExe" Source="$(var.BinDir)\draftcraft-cli.exe" KeyPath="yes" />
       </Component>
 
       <!-- Optional desktop shortcut, removed on uninstall. A non-advertised shortcut needs a registry
            key path, and one in a profile folder (DesktopFolder, even though ALLUSERS=1 makes it the
            Public desktop) must be under HKCU (ICE38, ICE43, ICE57). -->
       <Component Id="DesktopShortcut" Directory="DesktopFolder" Guid="76029CD7-EBDB-420F-AC34-FF0E82A99E32" Condition="DESKTOPSHORTCUT = &quot;1&quot;">
-        <Shortcut Id="DesktopShortcut" Name="DWGCraft" Description="DWGCraft computer-aided design" Target="[INSTALLFOLDER]dwgcraft.exe" WorkingDirectory="INSTALLFOLDER" Icon="CadcraftIcon.ico" IconIndex="0" />
-        <RegistryValue Root="HKMU" Key="Software\WithShalom Studios\DWGCraft" Name="DesktopShortcut" Value="1" Type="string" KeyPath="yes" />
+        <Shortcut Id="DesktopShortcut" Name="DraftCraft" Description="DraftCraft computer-aided design" Target="[INSTALLFOLDER]draftcraft.exe" WorkingDirectory="INSTALLFOLDER" Icon="CadcraftIcon.ico" IconIndex="0" />
+        <RegistryValue Root="HKMU" Key="Software\WithShalom Studios\DraftCraft" Name="DesktopShortcut" Value="1" Type="string" KeyPath="yes" />
       </Component>
     </ComponentGroup>
   </Fragment>

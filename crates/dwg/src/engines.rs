@@ -51,10 +51,10 @@ pub fn convert_dwg(bytes: &[u8], limits: Limits) -> Result<Converted, String> {
         Ok(Outcome::Partial(dxf, notes)) => (Some((dxf, notes)), None),
         Err(Failure::Failed(e)) => (None, Some(e)),
     };
-    match (crate::dwg_to_dxf_noted(bytes, limits), partial) {
+    match (crate::decode(bytes, limits), partial) {
         (Ok((dxf, notes)), _) => Ok(Converted { dxf, notes, engine: Engine::Acadrust }),
         (Err(_), Some((dxf, notes))) => Ok(Converted { dxf, notes, engine: Engine::CadCrates }),
-        (Err(e), None) => Err(if cfg!(target_arch = "wasm32") { cad_crates_error.unwrap_or(e) } else { e }),
+        (Err(e), None) => Err(if cfg!(no_dwg_bridge) { cad_crates_error.unwrap_or(e) } else { e }),
     }
 }
 
@@ -69,7 +69,7 @@ pub fn convert_dwg_with(engine: Engine, bytes: &[u8], limits: Limits) -> Result<
             Ok(Outcome::Partial(dxf, notes)) => Ok(Converted { dxf, notes, engine }),
             Err(Failure::Limit(e) | Failure::Failed(e)) => Err(e),
         },
-        Engine::Acadrust => crate::dwg_to_dxf_noted(bytes, limits).map(|(dxf, notes)| Converted { dxf, notes, engine }),
+        Engine::Acadrust => crate::decode(bytes, limits).map(|(dxf, notes)| Converted { dxf, notes, engine }),
     }
 }
 
@@ -89,6 +89,9 @@ pub struct Written {
     /// writer would have left out, or its error), one note each. Empty when the open engine wrote
     /// the file.
     pub notes: Vec<String>,
+    /// What the file leaves out of the drawing: records of each DXF type the writer couldn't
+    /// write. Empty when the open engine wrote the file (it writes only what it carries whole).
+    pub unwritten: crate::Unwritten,
 }
 
 /// Convert DXF bytes into a DWG file of `version`, a code from [`VERSIONS`] ("AC1032"), saying
@@ -104,7 +107,7 @@ pub fn dxf_to_dwg_written(dxf: &[u8], version: &str) -> Result<Written, String> 
     let mut notes = Vec::new();
     if code == CAD_CRATES_WRITES {
         match cad_crates::dxf_to_dwg(dxf) {
-            Ok(Outcome::Whole(dwg)) => return Ok(Written { dwg, engine: Engine::CadCrates, notes }),
+            Ok(Outcome::Whole(dwg)) => return Ok(Written { dwg, engine: Engine::CadCrates, notes, unwritten: crate::Unwritten::new() }),
             Ok(Outcome::Partial(_, lost)) => {
                 notes.clone_from(&lost);
                 left_out = Some(lost);
@@ -112,8 +115,8 @@ pub fn dxf_to_dwg_written(dxf: &[u8], version: &str) -> Result<Written, String> 
             Err(Failure::Limit(e) | Failure::Failed(e)) => notes.push(e),
         }
     }
-    match crate::dxf_to_dwg_as(dxf, &code) {
-        Ok(dwg) => Ok(Written { dwg, engine: Engine::Acadrust, notes }),
+    match crate::encode_noted(dxf, &code) {
+        Ok((dwg, unwritten)) => Ok(Written { dwg, engine: Engine::Acadrust, notes, unwritten }),
         Err(e) => Err(match left_out {
             Some(lost) => format!("{e} (the open engine's DWG writer would have left out: {})", lost.join("; ")),
             None => e,

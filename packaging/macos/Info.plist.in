@@ -7,13 +7,13 @@
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleDisplayName</key>
-  <string>DWGCraft</string>
+  <string>DraftCraft</string>
   <key>CFBundleName</key>
-  <string>DWGCraft</string>
+  <string>DraftCraft</string>
   <key>CFBundleExecutable</key>
-  <string>DWGCraft</string>
+  <string>DraftCraft</string>
   <key>CFBundleIdentifier</key>
-  <string>dev.cadcraft.dwg</string>
+  <string>dev.cadcraft.draft</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundlePackageType</key>
@@ -29,7 +29,7 @@
   <key>CADCraftBuildCommit</key>
   <string>@BUILD_SHA@</string>
   <key>CFBundleIconFile</key>
-  <string>DWGCraft</string>
+  <string>DraftCraft</string>
   <key>LSApplicationCategoryType</key>
   <string>public.app-category.graphics-design</string>
   <!-- Must match MACOSX_DEPLOYMENT_TARGET in package.sh. Big Sur is the first release on
@@ -45,12 +45,12 @@
   <key>NSHumanReadableCopyright</key>
   <string>Copyright © the ArtCraft Team, the CADCraft contributors and WithShalom Studios. MIT OR Apache-2.0.</string>
 
-  <!-- Drawing files DWGCraft opens (declared here in case macOS has no type for them). -->
+  <!-- Drawing files DraftCraft opens (declared here in case macOS has no type for them). -->
   <key>UTImportedTypeDeclarations</key>
   <array>
     <dict>
       <key>UTTypeIdentifier</key>
-      <string>dev.cadcraft.dwg.dxf</string>
+      <string>dev.cadcraft.draft.dxf</string>
       <key>UTTypeDescription</key>
       <string>Drawing Exchange Format</string>
       <key>UTTypeConformsTo</key>
@@ -65,7 +65,7 @@
     </dict>
     <dict>
       <key>UTTypeIdentifier</key>
-      <string>dev.cadcraft.dwg.dwg</string>
+      <string>dev.cadcraft.draft.dwg</string>
       <key>UTTypeDescription</key>
       <string>Drawing</string>
       <key>UTTypeConformsTo</key>
@@ -89,9 +89,9 @@
       <key>LSHandlerRank</key>
       <string>Alternate</string>
       <key>LSItemContentTypes</key>
-      <array><string>dev.cadcraft.dwg.dxf</string></array>
+      <array><string>dev.cadcraft.draft.dxf</string></array>
       <key>CFBundleTypeIconFile</key>
-      <string>DWGCraft</string>
+      <string>DraftCraft</string>
     </dict>
     <dict>
       <key>CFBundleTypeName</key>
@@ -101,9 +101,9 @@
       <key>LSHandlerRank</key>
       <string>Alternate</string>
       <key>LSItemContentTypes</key>
-      <array><string>dev.cadcraft.dwg.dwg</string></array>
+      <array><string>dev.cadcraft.draft.dwg</string></array>
       <key>CFBundleTypeIconFile</key>
-      <string>DWGCraft</string>
+      <string>DraftCraft</string>
     </dict>
   </array>
 

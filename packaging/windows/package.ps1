@@ -1,14 +1,14 @@
 <#
 .SYNOPSIS
-  Build, sign and package DWGCraft for Windows.
+  Build, sign and package DraftCraft for Windows.
 
 .DESCRIPTION
   Produces, in $env:DIST (default: dist/release):
-    dwgcraft-<version>-windows-<arch>.msi            per-machine installer (WiX v5)
-    dwgcraft-<version>-windows-<arch>-portable.zip   dwgcraft.exe + dwgcraft-cli.exe
+    draftcraft-<version>-windows-<arch>.msi            per-machine installer (WiX v5)
+    draftcraft-<version>-windows-<arch>-portable.zip   draftcraft.exe + draftcraft-cli.exe
 
-  The cargo binaries are cadcraft.exe and cadcraft-cli.exe; they ship as dwgcraft.exe and
-  dwgcraft-cli.exe, so DWGCraft never takes CADCraft's App Paths or file associations.
+  The cargo binaries are cadcraft.exe and cadcraft-cli.exe; they ship as draftcraft.exe and
+  draftcraft-cli.exe, so DraftCraft never takes CADCraft's App Paths or file associations.
 
   The binaries link the C runtime statically (+crt-static), so neither the MSI nor the portable
   zip needs the Visual C++ redistributable. Signing is delegated to sign.ps1 (skipped with a
@@ -58,7 +58,7 @@ New-Item -ItemType Directory -Force -Path $Dist | Out-Null
 if (-not $env:CADCRAFT_BUILD_SHA) { $env:CADCRAFT_BUILD_SHA = (git -C $Root rev-parse HEAD 2>$null) }
 if (-not $env:CADCRAFT_BUILD_DATE) { $env:CADCRAFT_BUILD_DATE = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd') }
 
-Write-Output "DWGCraft $Version for Windows $Arch ($Target)"
+Write-Output "DraftCraft $Version for Windows $Arch ($Target)"
 
 if (-not $SkipBuild) {
   # Static CRT: no VC++ redistributable needed. Scoped to the target so host build scripts and
@@ -91,10 +91,10 @@ foreach ($check in @(@('cadcraft.exe', 2), @('cadcraft-cli.exe', 3))) {
 $Stage = Join-Path $TargetDir "windows-package\$Arch"
 Remove-Item -Recurse -Force $Stage -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $Stage | Out-Null
-Copy-Item (Join-Path $Bin 'cadcraft.exe') (Join-Path $Stage 'dwgcraft.exe')
-Copy-Item (Join-Path $Bin 'cadcraft-cli.exe') (Join-Path $Stage 'dwgcraft-cli.exe')
+Copy-Item (Join-Path $Bin 'cadcraft.exe') (Join-Path $Stage 'draftcraft.exe')
+Copy-Item (Join-Path $Bin 'cadcraft-cli.exe') (Join-Path $Stage 'draftcraft-cli.exe')
 
-& (Join-Path $PSScriptRoot 'sign.ps1') (Join-Path $Stage 'dwgcraft.exe') (Join-Path $Stage 'dwgcraft-cli.exe')
+& (Join-Path $PSScriptRoot 'sign.ps1') (Join-Path $Stage 'draftcraft.exe') (Join-Path $Stage 'draftcraft-cli.exe')
 
 # ---- font notices for the MSI ------------------------------------------------------------------
 # The portable ZIP already carries these notices; stage the complete files before MSI creation too.
@@ -112,7 +112,7 @@ if ($env:CRAFT_FONTS_DIR) {
 # ---- end font notices for the MSI --------------------------------------------------------------
 
 # ---- MSI ---------------------------------------------------------------------------------------
-$Msi = Join-Path $Dist "dwgcraft-$Version-windows-$Arch.msi"
+$Msi = Join-Path $Dist "draftcraft-$Version-windows-$Arch.msi"
 Invoke-Native 'wix build' {
   wix build (Join-Path $PSScriptRoot 'cadcraft.wxs') -arch $Arch -ext WixToolset.UI.wixext `
     -d "Version=$MsiVersion" -d "BinDir=$Stage" -d "IconPath=$(Join-Path $Root 'assets\app-icon\cadcraft.ico')" `
@@ -126,7 +126,7 @@ Remove-Item -Force -ErrorAction SilentlyContinue ([IO.Path]::ChangeExtension($Ms
 & (Join-Path $PSScriptRoot 'sign.ps1') $Msi
 
 # ---- portable zip ------------------------------------------------------------------------------
-$Portable = Join-Path $TargetDir "windows-package\dwgcraft-$Version-windows-$Arch-portable"
+$Portable = Join-Path $TargetDir "windows-package\draftcraft-$Version-windows-$Arch-portable"
 Remove-Item -Recurse -Force $Portable -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $Portable | Out-Null
 Copy-Item (Join-Path $Stage '*.exe') $Portable
@@ -140,7 +140,7 @@ if ($env:CRAFT_FONTS_DIR) {
     Copy-Item $ofl.FullName (Join-Path $Portable "OFL-$($ofl.Directory.Name).txt")
   }
 }
-$Zip = Join-Path $Dist "dwgcraft-$Version-windows-$Arch-portable.zip"
+$Zip = Join-Path $Dist "draftcraft-$Version-windows-$Arch-portable.zip"
 Remove-Item -Force $Zip -ErrorAction SilentlyContinue
 Compress-Archive -Path $Portable -DestinationPath $Zip
 
@@ -148,8 +148,8 @@ Compress-Archive -Path $Portable -DestinationPath $Zip
 # here; .github/workflows/windows-arm64.yml installs and runs it on ARM64 instead.
 $HostArch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
 if ($Arch -ne 'arm64' -or $HostArch -eq 'arm64') {
-  Invoke-Native 'dwgcraft-cli --version' { & (Join-Path $Stage 'dwgcraft-cli.exe') --version }
+  Invoke-Native 'draftcraft-cli --version' { & (Join-Path $Stage 'draftcraft-cli.exe') --version }
 } else {
-  Write-Output "skipping dwgcraft-cli --version: an $Arch build doesn't run on this $HostArch machine"
+  Write-Output "skipping draftcraft-cli --version: an $Arch build doesn't run on this $HostArch machine"
 }
 Get-Item $Msi, $Zip | Format-Table Name, Length

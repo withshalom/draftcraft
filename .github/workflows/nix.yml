@@ -23,12 +23,12 @@ jobs:
     uses: storytold/craft-common-actions/.github/workflows/nix.yml@main
 
   git-sources:
-    name: Git dependencies come from storytold
+    name: Git dependencies come from storytold or withshalom/blackcad
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Git dependencies come from storytold
+      - name: Git dependencies come from storytold or withshalom/blackcad
         run: |
           set -euo pipefail
           test -f Cargo.lock || { echo "Cargo.lock is missing"; exit 1; }
@@ -52,10 +52,16 @@ jobs:
           python3 - <<'PY'
           import sys, tomllib
           lock = tomllib.load(open("Cargo.lock", "rb"))
+          # DraftCraft's DWG engine crates come from withshalom/blackcad: that repository
+          # exactly (followed by ?rev=, #, or .git), not any other withshalom repository.
+          def allowed(source):
+              if source.startswith("git+https://github.com/storytold/"):
+                  return True
+              blackcad = "git+https://github.com/withshalom/blackcad"
+              return source.startswith(blackcad) and source[len(blackcad):][:1] in ("?", "#", ".")
           bad = sorted({p["source"] for p in lock.get("package", [])
-                        if p.get("source", "").startswith("git+")
-                        and not p["source"].startswith("git+https://github.com/storytold/")})
+                        if p.get("source", "").startswith("git+") and not allowed(p["source"])})
           if bad:
-              print("Git dependencies outside github.com/storytold:", *bad, sep="\n")
+              print("Git dependencies outside github.com/storytold and github.com/withshalom/blackcad:", *bad, sep="\n")
               sys.exit(1)
           PY

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Draw DWGCraft's app icon: a drafting compass that has just drawn an arc, on a dark blueprint-blue
+"""Draw DraftCraft's app icon: a drafting compass that has just drawn an arc, on a dark blueprint-blue
 tile ruled with a drafting grid.
 
-Original artwork made for DWGCraft (MIT OR Apache-2.0). Writes the master SVGs and renders every icon
+Original artwork made for DraftCraft (MIT OR Apache-2.0). Writes the master SVGs and renders every icon
 size CADCraft's packaging uses, at the same paths, so nothing else needs to change:
 
     python3 packaging/compass-icon.py
 
-writes assets/app-icon/dwgcraft.svg (the full tile), dwgcraft-macos.svg (the tile on Apple's icon
+writes assets/app-icon/draftcraft.svg (the full tile), draftcraft-macos.svg (the tile on Apple's icon
 grid, with its margin), cadcraft-1024.png, cadcraft-macos-512.png, cadcraft-256.png, cadcraft-64.png,
 the hicolor PNGs, cadcraft.ico and cadcraft.icns. Needs Python 3 with Pillow and Playwright (its
 Chromium renders the SVG).
@@ -21,7 +21,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "assets", "app-icon")
-ID = "dev.cadcraft.dwg"
+ID = "dev.cadcraft.draft"
 
 # Colours.
 DEEP = "#081d38"  # the tile's darkest blueprint blue
@@ -187,8 +187,8 @@ def icns(pngs):
 
 def main(out=OUT):
     full, mac = svg(), svg(margin=100)
-    write(os.path.join(out, "dwgcraft.svg"), full.encode())
-    write(os.path.join(out, "dwgcraft-macos.svg"), mac.encode())
+    write(os.path.join(out, "draftcraft.svg"), full.encode())
+    write(os.path.join(out, "draftcraft-macos.svg"), mac.encode())
     master = render(full, S)
     mac_master = render(mac, S)
     write(os.path.join(out, "cadcraft-1024.png"), master)
