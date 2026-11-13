@@ -10,11 +10,77 @@ const CP1252_HIGH: [u32; 32] = [
 ];
 
 /// Name for the DWGCODEPAGE value stored in the file header, where known.
-/// Only the common Western value is mapped so far.
 pub fn codepage_name(cp: u16) -> &'static str {
-    match cp {
+    code_page_name(cp).unwrap_or("unmapped (decoded as ANSI_1252)")
+}
+
+/// The DXF name (`$DWGCODEPAGE`) of the code page number a DWG file stores for its 8-bit text
+/// (1 to 44), or `None` for a number with no name. Where two numbers name one code page
+/// (22 and 38, Japanese), each keeps the name AutoCAD gives it.
+pub fn code_page_name(cp: u16) -> Option<&'static str> {
+    Some(match cp {
+        1 => "ASCII",
+        2 => "ISO8859-1",
+        3 => "ISO8859-2",
+        4 => "ISO8859-3",
+        5 => "ISO8859-4",
+        6 => "ISO8859-5",
+        7 => "ISO8859-6",
+        8 => "ISO8859-7",
+        9 => "ISO8859-8",
+        10 => "ISO8859-9",
+        11 => "DOS437",
+        12 => "DOS850",
+        13 => "DOS852",
+        14 => "DOS855",
+        15 => "DOS857",
+        16 => "DOS860",
+        17 => "DOS861",
+        18 => "DOS863",
+        19 => "DOS864",
+        20 => "DOS865",
+        21 => "DOS869",
+        22 => "DOS932",
+        23 => "MACINTOSH",
+        24 => "BIG5",
+        25 => "KSC5601",
+        26 => "JOHAB",
+        27 => "DOS866",
+        28 => "ANSI_1250",
+        29 => "ANSI_1251",
         30 => "ANSI_1252",
-        _ => "unmapped (decoded as ANSI_1252)",
+        31 => "GB2312",
+        32 => "ANSI_1253",
+        33 => "ANSI_1254",
+        34 => "ANSI_1255",
+        35 => "ANSI_1256",
+        36 => "ANSI_1257",
+        37 => "ANSI_874",
+        38 => "ANSI_932",
+        39 => "ANSI_936",
+        40 => "ANSI_949",
+        41 => "ANSI_950",
+        42 => "ANSI_1361",
+        43 => "UTF8",
+        44 => "ANSI_1258",
+        _ => return None,
+    })
+}
+
+/// How the reader turns a file's text into strings: 8-bit text (up to AutoCAD 2004), given its
+/// bytes and the code page number it is in, and UTF-16 text (from 2007), given as decoded. The
+/// codec's own ([`TextDecoding::default`]) reads 8-bit text as Windows-1252 with `\U+XXXX`
+/// escapes expanded and keeps UTF-16 text as stored; a caller that knows the code pages and the
+/// rest of the escapes sets its own on the file, so the text of both formats reads one way.
+#[derive(Clone, Copy, Debug)]
+pub struct TextDecoding {
+    pub ansi: fn(&[u8], u16) -> String,
+    pub unicode: fn(String) -> String,
+}
+
+impl Default for TextDecoding {
+    fn default() -> Self {
+        TextDecoding { ansi: decode_ansi, unicode: |s| s }
     }
 }
 
@@ -60,14 +126,29 @@ pub fn expand_unicode_escapes(s: &str) -> String {
     let chars: Vec<char> = s.chars().collect();
     let mut out = String::with_capacity(s.len());
     let mut i = 0;
+    // The four hex digits of a `\U+XXXX` escape at `i`.
+    let unit = |i: usize| -> Option<u32> {
+        let head = chars.get(i..i + 3)?;
+        if head[0] != '\\' || !matches!(head[1], 'U' | 'u') || head[2] != '+' {
+            return None;
+        }
+        let hex: String = chars.get(i + 3..i + 7)?.iter().collect();
+        u32::from_str_radix(&hex, 16).ok()
+    };
     while i < chars.len() {
-        if chars[i] == '\\' && i + 7 <= chars.len() && (chars[i + 1] == 'U' || chars[i + 1] == 'u') && chars[i + 2] == '+' {
-            let hex: String = chars[i + 3..i + 7].iter().collect();
-            if let Ok(v) = u32::from_str_radix(&hex, 16)
-                && let Some(c) = char::from_u32(v)
-            {
+        if let Some(v) = unit(i) {
+            if let Some(c) = char::from_u32(v) {
                 out.push(c);
                 i += 7;
+                continue;
+            }
+            // A character past U+FFFF is two escapes, a UTF-16 surrogate pair.
+            if (0xD800..0xDC00).contains(&v)
+                && let Some(low) = unit(i + 7).filter(|u| (0xDC00..0xE000).contains(u))
+                && let Some(c) = char::from_u32(0x10000 + ((v - 0xD800) << 10) + (low - 0xDC00))
+            {
+                out.push(c);
+                i += 14;
                 continue;
             }
         }

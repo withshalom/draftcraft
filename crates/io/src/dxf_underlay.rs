@@ -46,14 +46,29 @@ pub(crate) fn read_entity(tags: &[Tag]) -> Image {
     let i = |c: i32| tags.iter().find(|t| t.code == c).map(Tag::i64);
     let pct = |c: i32, d: u8| i(c).and_then(|v| u8::try_from(v.clamp(0, 100)).ok()).unwrap_or(d);
     let insert = Vec3::new(f(10).unwrap_or(0.0), f(20).unwrap_or(0.0), f(30).unwrap_or(0.0));
-    let nonzero = |v: Option<f64>| v.filter(|s| *s != 0.0).unwrap_or(1.0);
-    let (sx, sy) = (nonzero(f(41)), nonzero(f(42)));
-    let rot = f(50).unwrap_or(0.0).to_radians();
-    let dir = Vec2::from_angle(rot);
     let flags = i(280).unwrap_or(FLAG_ON);
     let xs = tags.iter().filter(|t| t.code == 11).map(Tag::f64);
     let ys = tags.iter().filter(|t| t.code == 21).map(Tag::f64);
-    let clip: Vec<Vec2> = xs.zip(ys).take(MAX_CLIP).map(|(x, y)| Vec2::new(x, y)).filter(|q| q.x.is_finite() && q.y.is_finite()).collect();
+    let clip: Vec<Vec2> = xs.zip(ys).take(MAX_CLIP).map(|(x, y)| Vec2::new(x, y)).collect();
+    let rotation = f(50).unwrap_or(0.0).to_radians();
+    reference(insert, (f(41), f(42)), rotation, flags, (pct(281, Underlay::DEFAULT_CONTRAST), pct(282, 0)), clip)
+}
+
+/// An underlay reference as the drawing holds it: one PDF point as the `u`/`v` vectors from
+/// the scales (a zero or missing one is 1) and the rotation (radians), the display and clipping
+/// from the flags. Both file formats hold these values.
+pub(crate) fn reference(
+    insert: Vec3,
+    scale: (Option<f64>, Option<f64>),
+    rotation: f64,
+    flags: i64,
+    (contrast, fade): (u8, u8),
+    clip: Vec<Vec2>,
+) -> Image {
+    let nonzero = |v: Option<f64>| v.filter(|s| s.is_finite() && *s != 0.0).unwrap_or(1.0);
+    let (sx, sy) = (nonzero(scale.0), nonzero(scale.1));
+    let dir = Vec2::from_angle(if rotation.is_finite() { rotation } else { 0.0 });
+    let clip = clip.into_iter().take(MAX_CLIP).filter(|q| q.x.is_finite() && q.y.is_finite()).collect();
     Image {
         insert,
         u: (dir * (sx / POINTS_PER_INCH)).to3(0.0),
@@ -62,8 +77,8 @@ pub(crate) fn read_entity(tags: &[Tag]) -> Image {
         size: Vec2::ZERO,
         clipping: flags & FLAG_CLIP != 0,
         display: if flags & FLAG_ON != 0 { 7 } else { 6 },
-        contrast: pct(281, Underlay::DEFAULT_CONTRAST),
-        fade: pct(282, 0),
+        contrast,
+        fade,
         underlay: Some(Underlay {
             kind: UnderlayKind::Pdf,
             page: String::new(),

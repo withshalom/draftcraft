@@ -20,9 +20,7 @@ pub(super) fn hatch(tags: &[Tag], t: &T) -> Option<EntityKind> {
         i += 1;
         let outer = flags & 1 != 0;
         let mut verts = if flags & 2 != 0 { polyline_boundary(tags, &mut i)? } else { edge_boundary(tags, &mut i)? };
-        if verts.len() > 1 && verts.first().map(|f| f.p).zip(verts.last().map(|l| l.p)).is_some_and(|(a, b)| a.near(b, 1e-9)) {
-            verts.pop();
-        }
+        close_loop(&mut verts);
         let sources = boundary_sources(tags, &mut i);
         loops.push(HatchLoop { vertices: verts, outer, sources });
     }
@@ -47,6 +45,13 @@ pub(super) fn hatch(tags: &[Tag], t: &T) -> Option<EntityKind> {
         background,
         pattern_lines,
     }))
+}
+
+/// A loop's last vertex dropped when it repeats the first: a loop is closed by definition.
+pub(crate) fn close_loop(verts: &mut Vec<PolyVertex>) {
+    if verts.len() > 1 && verts.first().map(|f| f.p).zip(verts.last().map(|l| l.p)).is_some_and(|(a, b)| a.near(b, 1e-9)) {
+        verts.pop();
+    }
 }
 
 fn seek_code(tags: &[Tag], index: &mut usize, code: i32) {
@@ -105,6 +110,11 @@ fn line_edge(tags: &[Tag], index: &mut usize, vertices: &mut Vec<PolyVertex>) {
     let start = Vec2::new(edge_value(tags, *index), edge_value(tags, *index + 1));
     let end = Vec2::new(edge_value(tags, *index + 2), edge_value(tags, *index + 3));
     *index += 4;
+    push_line(vertices, start, end);
+}
+
+/// A boundary's line edge, joined to the edge before it.
+pub(crate) fn push_line(vertices: &mut Vec<PolyVertex>, start: Vec2, end: Vec2) {
     if vertices.last().is_none_or(|last| !last.p.near(start, 1e-9)) {
         vertices.push(PolyVertex::new(start));
     }
@@ -118,6 +128,12 @@ fn circular_edge(tags: &[Tag], index: &mut usize, vertices: &mut Vec<PolyVertex>
     let end_angle = edge_value(tags, *index + 4).to_radians();
     let ccw = tags.get(*index + 5).map(Tag::i64).unwrap_or(1) != 0;
     *index += 6;
+    push_arc(vertices, center, radius, start_angle, end_angle, ccw);
+}
+
+/// A boundary's circular arc edge (angles in radians, measured the arc's own way round), as a
+/// bulge from the edge's start.
+pub(crate) fn push_arc(vertices: &mut Vec<PolyVertex>, center: Vec2, radius: f64, start_angle: f64, end_angle: f64, ccw: bool) {
     let (start, end) = if ccw { (start_angle, end_angle) } else { (-start_angle, -end_angle) };
     let start_point = Vec2::polar(center, radius, start);
     let end_point = Vec2::polar(center, radius, end);
@@ -145,6 +161,11 @@ fn elliptic_edge(tags: &[Tag], index: &mut usize, vertices: &mut Vec<PolyVertex>
     let end_angle = edge_value(tags, *index + 6).to_radians();
     let ccw = tags.get(*index + 7).filter(|tag| tag.code == 73).map(Tag::i64).unwrap_or(1) != 0;
     *index += 8;
+    push_ellipse(vertices, center, major, ratio, start_angle, end_angle, ccw);
+}
+
+/// A boundary's elliptical arc edge (angles in radians), as the points of its tessellation.
+pub(crate) fn push_ellipse(vertices: &mut Vec<PolyVertex>, center: Vec2, major: Vec2, ratio: f64, start_angle: f64, end_angle: f64, ccw: bool) {
     let (start, end) = if ccw { (start_angle, end_angle) } else { (-end_angle, -start_angle) };
     let ellipse = draftcraft_geom::Ellipse { center, major, ratio, start, end };
     let mut points = Vec::new();
@@ -192,6 +213,13 @@ fn spline_edge(tags: &[Tag], index: &mut usize, vertices: &mut Vec<PolyVertex>) 
             *index += 2;
         }
     }
+    push_spline(vertices, degree, knots, control, weights, &fit);
+}
+
+/// A boundary's spline edge, as the points of its tessellation: rebuilt from its fit points or
+/// control points when what the file holds is not a valid curve.
+pub(crate) fn push_spline(vertices: &mut Vec<PolyVertex>, degree: usize, knots: Vec<f64>, control: Vec<Vec2>, mut weights: Vec<f64>, fit: &[Vec2]) {
+    let degree = degree.clamp(1, 10);
     if weights.len() != control.len() {
         weights.clear();
     }
@@ -199,7 +227,7 @@ fn spline_edge(tags: &[Tag], index: &mut usize, vertices: &mut Vec<PolyVertex>) 
     let spline = if spline.is_valid() {
         spline
     } else if spline.control.is_empty() && fit.len() > 1 {
-        Spline::from_fit_points(&fit)
+        Spline::from_fit_points(fit)
     } else {
         Spline::from_control(spline.control, degree)
     };
@@ -276,7 +304,23 @@ fn pattern_definition(tags: &[Tag], scale: f64, angle: f64, origin: Vec2) -> Vec
             _ => break,
         }
     }
+    pattern_lines_from(raw, scale, angle, origin)
+}
+
+/// Pattern definition lines as a file holds them (angle in degrees, base point, offset, dashes:
+/// scaled, rotated with the hatch and the offset as a world vector), the library's way: unit
+/// scale, no hatch rotation, base point relative to the hatch origin, offset as shift along the
+/// line and spacing. Lines with non-finite values are skipped.
+pub(crate) fn pattern_lines_from(
+    raw: Vec<(f64, Vec2, Vec2, Vec<f64>)>,
+    scale: f64,
+    angle: f64,
+    origin: Vec2,
+) -> Vec<draftcraft_doc::library::PatternLine> {
+    let scale = if scale.is_finite() && scale > 1e-9 { scale } else { 1.0 };
+    let angle = if angle.is_finite() { angle } else { 0.0 };
     raw.into_iter()
+        .take(MAX_PATTERN_LINES)
         .filter(|(a, b, o, d)| a.is_finite() && b.is_finite() && o.is_finite() && d.iter().all(|v| v.is_finite()))
         .map(|(a, base, offset, dashes)| {
             let local = (base - origin).rotate(-angle) * (1.0 / scale);
@@ -285,7 +329,7 @@ fn pattern_definition(tags: &[Tag], scale: f64, angle: f64, origin: Vec2) -> Vec
                 angle: a - angle.to_degrees(),
                 origin: (local.x, local.y),
                 delta: (delta.x, delta.y),
-                dashes: dashes.into_iter().map(|d| d / scale).collect(),
+                dashes: dashes.into_iter().take(MAX_PATTERN_DASHES).map(|d| d / scale).collect(),
             }
         })
         .collect()
@@ -293,7 +337,7 @@ fn pattern_definition(tags: &[Tag], scale: f64, angle: f64, origin: Vec2) -> Vec
 
 /// Hatch origin and background colour from `DRAFTCRAFT` xdata: `1000 HATCH`, `1011` origin,
 /// `1000` background colour name (empty for none). Defaults when absent.
-fn hatch_xdata(tags: &[Tag]) -> (Vec2, Option<Color>) {
+pub(crate) fn hatch_xdata(tags: &[Tag]) -> (Vec2, Option<Color>) {
     let x = crate::dxf_ext::xdata(tags, crate::dxf_ext::APP);
     let Some(at) = x.windows(2).position(|w| matches!(w, [m, o] if m.code == 1000 && m.str() == "HATCH" && o.code == 1011)) else {
         return (Vec2::ZERO, None);
@@ -305,7 +349,7 @@ fn hatch_xdata(tags: &[Tag]) -> (Vec2, Option<Color>) {
 }
 
 /// Gradient values missing from a file fall back to the GRADIENT command's defaults.
-fn default_gradient() -> Gradient {
+pub(crate) fn default_gradient() -> Gradient {
     Gradient { name: "LINEAR".into(), color1: Color::Index(5), color2: Color::Index(7), angle: 0.0, centered: true }
 }
 
@@ -316,7 +360,7 @@ fn gradient(tags: &[Tag]) -> Option<Gradient> {
 }
 
 /// `DRAFTCRAFT` xdata: `1000 GRADIENT`, then name, 1040 angle, 1070 centered, colour 1 and 2 names.
-fn xdata_gradient(tags: &[Tag]) -> Option<Gradient> {
+pub(crate) fn xdata_gradient(tags: &[Tag]) -> Option<Gradient> {
     let x = crate::dxf_ext::xdata(tags, crate::dxf_ext::APP);
     let at = x.iter().position(|t| t.code == 1000 && t.str() == "GRADIENT")?;
     let o = x.get(at + 1..).unwrap_or(&[]);

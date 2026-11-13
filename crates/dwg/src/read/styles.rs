@@ -723,6 +723,11 @@ impl Lookup {
         Lookup { text_styles: Vec::new() }
     }
 
+    /// The text styles by name and handle, as a reader that has its own tables knows them.
+    pub(crate) fn from_text_styles(text_styles: Vec<(String, Handle)>) -> Lookup {
+        Lookup { text_styles }
+    }
+
     pub fn new(d: &Drawing) -> Lookup {
         let text_styles = d
             .objects

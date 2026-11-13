@@ -16,12 +16,35 @@ use crate::{IoError, Result};
 
 mod common;
 pub(crate) use common::{ocs_n, transparency_440};
+pub(crate) use entities::{SplineParts, helix, mesh_faces_of, spline_from, table_from};
+pub(crate) use hatch::{
+    close_loop, default_gradient, hatch_xdata, pattern_lines_from, push_arc, push_ellipse, push_line, push_spline, xdata_gradient,
+};
 pub(crate) use tables::style_font_of;
+pub(crate) use text::mirror_text;
+
+/// Apply a DIMASSOC object, as its DXF groups, to the dimension it names. The DWG reader uses it too.
+pub(crate) fn apply_dimassoc(d: &mut Drawing, tags: &[Tag]) {
+    dimassoc::dimassoc(d, tags);
+}
+
+/// A page setup from the groups of a layout's plot settings. The DWG reader uses it too, so a
+/// page setup means the same from either format.
+pub(crate) fn page_setup_of(plot: &[Tag]) -> PageSetup {
+    objects::page_setup(&common::T(plot))
+}
+
+/// A layout's own limits from its groups 10/20 and 11/21, as the DXF reader keeps them.
+pub(crate) fn layout_limits_of(layout: &[Tag]) -> Option<(Vec2, Vec2)> {
+    document::limits(&common::T(layout))
+}
+
 mod dimassoc;
 mod document;
 mod entities;
 mod hatch;
 mod objects;
+pub(crate) use objects::{apply_own_records, apply_scales, put_groups};
 mod tables;
 mod text;
 

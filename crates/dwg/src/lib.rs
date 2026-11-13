@@ -1,8 +1,10 @@
 //! DraftCraft's DWG codec.
 //!
-//! - [`read`]: DWG files from R13 to AutoCAD 2018 and later (except 2007) into the [`records`] of
+//! - [`read`]: DWG files from R13 to AutoCAD 2018 and later into the [`records`] of
 //!   their objects, which `draftcraft-io` maps straight into the drawing.
 //! - [`write`]: AutoCAD 2018 (AC1032) DWG files from records.
+//! - [`file`]: a DWG file opened to its parts (version, sections, the object list), for a reader
+//!   that builds the drawing itself.
 //! - [`bits`], [`crc`], [`lz77`]: the format's primitives, shared by both.
 //! - [`acadrust`]: DWG through the acadrust crate (MPL-2.0, used unmodified), converted to and from
 //!   DXF bytes: the fallback for what the reader and writer don't cover yet.
@@ -17,6 +19,7 @@
 pub mod acadrust;
 pub mod bits;
 pub mod crc;
+pub mod file;
 pub mod lz77;
 pub mod read;
 pub mod records;

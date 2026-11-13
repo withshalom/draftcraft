@@ -2753,6 +2753,57 @@ fn foreign_table_reads_cell_text_height_and_keeps_style_scale() {
     assert_eq!(t2.cells[0][1].text_height, None);
 }
 
+/// LTYPE group 50, an embedded shape's or text's rotation, is in degrees in AutoCAD's files (its
+/// DXF of ZIGZAG and BATTING has 180 where its DWG of the same drawing has pi). A file an earlier
+/// DraftCraft wrote (its application registered, its linetypes unmarked) has radians; DraftCraft
+/// now writes degrees and marks the linetype.
+#[test]
+fn linetype_rotations_are_degrees_as_autocad_writes_them() {
+    let dxf = |apps: &str, rotation: &str| {
+        format!(
+            "0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLTYPE\n0\nLTYPE\n2\nZIGZAG\n70\n0\n3\nzig\n72\n65\n73\n2\n40\n0.4\n\
+             49\n0.0001\n74\n0\n49\n-0.2\n74\n2\n75\n0\n340\n0\n46\n0.1\n50\n{rotation}\n44\n0\n45\n0\n9\nX\n0\nENDTAB\n\
+             0\nTABLE\n2\nAPPID\n{apps}0\nENDTAB\n0\nENDSEC\n0\nEOF\n"
+        )
+    };
+    let rotation = |text: &str| {
+        let d = read_dxf(text.as_bytes()).unwrap();
+        let lt = d.linetypes.iter().find(|l| l.name == "ZIGZAG").cloned().unwrap();
+        lt.pattern.iter().find(|e| e.text.is_some()).map(|e| e.rotation).unwrap()
+    };
+    let near = |a: f64, b: f64| (a - b).abs() < 1e-12;
+    // AutoCAD's: degrees.
+    assert!(near(rotation(&dxf("0\nAPPID\n2\nACAD\n70\n0\n", "180.0")), std::f64::consts::PI));
+    // An earlier DraftCraft's: radians.
+    let old = dxf("0\nAPPID\n2\nACAD\n70\n0\n0\nAPPID\n2\nDRAFTCRAFT\n70\n0\n", "3.141592653589793");
+    assert!(near(rotation(&old), std::f64::consts::PI));
+    // Written now: degrees and the mark, read back as it was.
+    let d = read_dxf(old.as_bytes()).unwrap();
+    let written = write_dxf(&d);
+    assert!(written.contains("LTYPE_DEGREES"), "the linetype is marked");
+    let lines: Vec<&str> = written.lines().map(str::trim).collect();
+    let fifty = lines.windows(2).find(|w| w[0] == "50" && w[1].starts_with("180")).is_some();
+    assert!(fifty, "group 50 in degrees");
+    assert!(near(rotation(&written), std::f64::consts::PI));
+}
+
+/// AutoCAD's table cells of other values than text (ACAD_TABLE A35 of ACadSharp's samples, saved
+/// by AutoCAD): the value block holds the value and the text AutoCAD shows for it (302), which the
+/// cell reads. A text value keeps its own string (1).
+#[test]
+fn table_cells_of_numbers_and_dates_show_autocads_formatted_text() {
+    let dxf = "0\nSECTION\n2\nENTITIES\n0\nACAD_TABLE\n100\nAcDbTable\n91\n1\n92\n4\n141\n1\n142\n2\n142\n2\n142\n2\n142\n2\n\
+        171\n1\n301\nCELL_VALUE\n93\n6\n90\n2\n140\n0.5\n94\n0\n300\n\n302\n0.500000\n304\nACVALUE_END\n\
+        171\n1\n301\nCELL_VALUE\n93\n4\n90\n2\n140\n35.0\n94\n32\n300\n%lu2%pr2%ps[,%]\n302\n35.00%\n304\nACVALUE_END\n\
+        171\n1\n301\nCELL_VALUE\n93\n6\n90\n8\n92\n16\n310\nE8070B0005000F000000000000000000\n94\n0\n300\n\n302\n11/15/2024\n304\nACVALUE_END\n\
+        171\n1\n301\nCELL_VALUE\n93\n6\n90\n4\n1\nThis is my content\n94\n0\n300\n\n302\nThis is my content\n304\nACVALUE_END\n\
+        0\nENDSEC\n0\nEOF\n";
+    let d = read_dxf(dxf.as_bytes()).unwrap();
+    let t = first(&d, |k| if let EntityKind::Table(x) = k { Some(x.clone()) } else { None });
+    let texts: Vec<&str> = t.cells[0].iter().map(|c| c.text.as_str()).collect();
+    assert_eq!(texts, ["0.500000", "35.00%", "11/15/2024", "This is my content"]);
+}
+
 /// Issue #1209: a file that declares no units ($INSUNITS absent or 0) stays unitless when written
 /// again; only a new drawing takes its template's units.
 #[test]

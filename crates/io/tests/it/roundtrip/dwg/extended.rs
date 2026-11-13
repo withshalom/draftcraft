@@ -74,7 +74,6 @@ fn layer_appearance() {
     check(properties::layer_appearance());
 }
 #[test]
-#[ignore = "Confirmed DWG loss: named layer plot style Review becomes Normal"]
 fn layer_plot_styles() {
     check(properties::layer_plot_styles());
 }
@@ -239,17 +238,14 @@ fn wipeout_implicit_closure() {
     }
 }
 #[test]
-#[ignore = "Confirmed shared DXF loss: LEADER vertex Z coordinates become zero"]
 fn leaders_3d() {
     check(geometry::leaders(true));
 }
 #[test]
-#[ignore = "Confirmed shared DXF loss: ATTRIB constant flag becomes false"]
 fn constant_attributes() {
     check(blocks::attributes("constant"));
 }
 #[test]
-#[ignore = "Confirmed DWG loss: a space following an MTEXT caret is consumed"]
 fn mtext_carets() {
     check(geometry::mtext_carets());
 }
@@ -334,7 +330,6 @@ fn header_variables() {
     collection(collections::headers(), collections::assert_headers);
 }
 #[test]
-#[ignore = "Confirmed DWG loss: current layer CLAYER becomes 0"]
 fn header_current_layer() {
     collection(collections::named_header_reference("CLAYER"), collections::assert_headers);
 }
@@ -379,17 +374,13 @@ fn layouts_and_paperspace() {
 }
 
 fn with_dimension_styles(cases: Vec<Case>) {
-    // Fixed-length extension lines (DIMFXL) were added in 2007. Older DWG records have no
-    // slot for the inactive default length, and the bridge supplies zero on read.
+    // Fixed-length extension lines (DIMFXL) were added in 2007. Older DWG records have no slot
+    // for the length; the direct reader gives a style the default length then (AutoCAD's 1.0),
+    // and a length that isn't the default comes back from DraftCraft's extended data. (The
+    // acadrust bridge supplied zero.)
     for case in cases {
         for version in Version::ALL {
-            let mut expected = case.drawing.clone();
-            if version < Version::R2007 {
-                for style in &mut expected.dim_styles {
-                    style.fixed_ext_length = 0.0;
-                }
-            }
-            super::check_version(&case.name, &case.drawing, &expected, version);
+            super::check_version(&case.name, &case.drawing, &case.drawing, version);
         }
     }
 }

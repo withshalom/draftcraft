@@ -189,7 +189,7 @@ fn linetype_body(s: &mut Streams, name: &str, flags: u16) -> Result<Linetype> {
             for e in elements.iter_mut().filter(|e| is_text(e)) {
                 let start = (e.shape as usize).min(area.len());
                 let end = area[start..].iter().position(|&b| b == 0).map_or(area.len(), |p| start + p);
-                e.text = crate::read::text::decode_ansi(&area[start..end], s.codepage);
+                e.text = (s.text.ansi)(&area[start..end], s.codepage);
                 e.shape = 0;
             }
         }
@@ -365,7 +365,7 @@ mod tests {
     }
 
     fn read(bytes: &[u8]) -> ObjectKind {
-        let mut s = Streams { ver: V::R2000, codepage: 30, dat: BitReader::new(bytes), strs: None, hdl: None };
+        let mut s = Streams { ver: V::R2000, codepage: 30, dat: BitReader::new(bytes), strs: None, hdl: None, text: Default::default() };
         linetype(&mut s).unwrap()
     }
 
@@ -425,7 +425,7 @@ mod tests {
         for &b in area {
             w.rc(b);
         }
-        let mut s = Streams { ver, codepage: 30, dat: BitReader::new(&w.out), strs: None, hdl: None };
+        let mut s = Streams { ver, codepage: 30, dat: BitReader::new(&w.out), strs: None, hdl: None, text: Default::default() };
         linetype(&mut s).unwrap()
     }
 

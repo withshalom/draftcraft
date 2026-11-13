@@ -1,0 +1,15 @@
+{
+  "name": "DraftCraft",
+  "short_name": "DraftCraft",
+  "description": "Open-source 2D drafting with the ribbon you know, built in pure Rust.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#22282f",
+  "theme_color": "#313844",
+  "icons": [
+    { "src": "draftcraft-256.png", "sizes": "256x256", "type": "image/png" },
+    { "src": "dev.skryx.draftcraft.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

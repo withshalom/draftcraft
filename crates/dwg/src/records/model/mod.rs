@@ -78,6 +78,9 @@ pub struct EntityCommon {
     pub invisible: bool,
     pub plotstyle: Handle,
     pub material: Handle,
+    /// The DBCOLOR object of a color book color (R2004+), whose true color and names the
+    /// entity takes; [`Handle::NULL`] for none.
+    pub color_book: Handle,
 }
 
 impl Default for EntityCommon {
@@ -95,6 +98,7 @@ impl Default for EntityCommon {
             invisible: false,
             plotstyle: Handle::NULL,
             material: Handle::NULL,
+            color_book: Handle::NULL,
         }
     }
 }

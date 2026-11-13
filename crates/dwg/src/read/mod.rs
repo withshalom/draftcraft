@@ -1,8 +1,7 @@
 //! BlackCAD's DWG reader and writer.
 //!
 //! Reading: [`read_bytes`] turns a DWG file of any version from R13 to
-//! AutoCAD 2018 and later (AC1012–AC1032) into a [`Drawing`], except
-//! AutoCAD 2007–2009 (AC1021), whose container is not implemented yet.
+//! AutoCAD 2018 and later (AC1012–AC1032) into a [`Drawing`].
 //! Writing: [`write::to_bytes`] writes a drawing as an AutoCAD 2018
 //! (AC1032) file.
 //!
@@ -11,7 +10,7 @@
 //!
 //! Reading, step by step: detect the version → extract sections from the
 //! container
-//! (R13–R15 flat, or R2004-family paged) → classes → object map → decode
+//! (R13–R15 flat, R2004-family paged, or AutoCAD 2007's codewords) → classes → object map → decode
 //! every object → header variables (validated against the objects).
 //!
 //! Each object is decoded in isolation: a failure is recorded on that
@@ -37,6 +36,7 @@ pub(crate) mod objmap;
 mod probe;
 pub(crate) mod r2000;
 pub(crate) mod r2004;
+pub(crate) mod r2007;
 pub(crate) mod section;
 pub(crate) mod streams;
 pub(crate) mod styles;
@@ -67,8 +67,8 @@ pub fn sniff_version(bytes: &[u8]) -> Option<DwgVersion> {
     DwgVersion::from_magic(bytes)
 }
 
-/// Read a DWG file from memory.
-pub fn read_bytes(bytes: &[u8]) -> Result<Drawing> {
+/// A file's version and its container opened to sections.
+pub(crate) fn open_container(bytes: &[u8]) -> Result<(DwgVersion, container::Container)> {
     let ver = DwgVersion::from_magic(bytes).ok_or_else(|| {
         let tag: String = bytes.iter().take(6).map(|&b| if b.is_ascii_graphic() { b as char } else { '?' }).collect();
         Error::new(ErrorKind::NotDwg, format!("unrecognised version tag {tag:?}"))
@@ -76,14 +76,14 @@ pub fn read_bytes(bytes: &[u8]) -> Result<Drawing> {
     let container = match ver {
         DwgVersion::R13 | DwgVersion::R14 | DwgVersion::R2000 => r2000::read(bytes, ver)?,
         DwgVersion::R2004 | DwgVersion::R2010 | DwgVersion::R2013 | DwgVersion::R2018 => r2004::read(bytes, ver)?,
-        DwgVersion::R2007 => {
-            return Err(Error::new(
-                ErrorKind::UnsupportedVersion,
-                "AC1021 (AutoCAD 2007–2009) uses its own container, which is not implemented yet; \
-                 save the drawing as 2004 or 2010-and-later format",
-            ));
-        }
+        DwgVersion::R2007 => r2007::read(bytes, ver)?,
     };
+    Ok((ver, container))
+}
+
+/// Read a DWG file from memory.
+pub fn read_bytes(bytes: &[u8]) -> Result<Drawing> {
+    let (ver, container) = open_container(bytes)?;
     let mut diagnostics = container.notes;
     let maintenance = container.maintenance;
     let codepage = container.codepage;
@@ -113,7 +113,7 @@ pub fn read_bytes(bytes: &[u8]) -> Result<Drawing> {
     let entries = choose_object_map(&container.handles, ver, &container.objects, &mut diagnostics)?;
 
     // Objects.
-    let ctx = object::DecodeCtx { ver, codepage, classes: &classes };
+    let ctx = object::DecodeCtx { ver, codepage, classes: &classes, text: Default::default() };
     let mut objects: BTreeMap<Handle, Object> = BTreeMap::new();
     let mut out_of_range = 0usize;
     let mut mismatched = 0usize;
@@ -205,7 +205,7 @@ pub fn read_bytes(bytes: &[u8]) -> Result<Drawing> {
 /// writes `01 00 00 00` before it). 0 is imperial, 1 metric; anything else
 /// is not believed. R13–R15 files have no such section and keep the
 /// default.
-fn template_measurement(s: &[u8]) -> Option<u16> {
+pub(crate) fn template_measurement(s: &[u8]) -> Option<u16> {
     let at = s.len().checked_sub(2)?;
     let m = u16::from_le_bytes([*s.get(at)?, *s.get(at + 1)?]);
     (m <= 1).then_some(m)
@@ -232,7 +232,7 @@ fn summary_text(s: &[u8], p: &mut usize, wide: bool) -> Option<String> {
 /// AcDb:SummaryInfo (spec chapter 13): eight strings, three dates the
 /// header also holds, then custom properties as name and value pairs.
 /// `None` if it does not parse.
-fn summary_info(s: &[u8], wide: bool) -> Option<Properties> {
+pub(crate) fn summary_info(s: &[u8], wide: bool) -> Option<Properties> {
     let mut p = 0usize;
     let mut f = Vec::with_capacity(8);
     for _ in 0..8 {
@@ -288,7 +288,7 @@ fn failed(ctx: &object::DecodeCtx, data: &[u8], handle: u64, offset: usize, mess
 
 /// Parse the object map both ways and keep the reading whose entries agree
 /// with the handles stored in the objects themselves.
-fn choose_object_map(handles: &[u8], ver: DwgVersion, objects: &[u8], diagnostics: &mut Vec<Diagnostic>) -> Result<Vec<objmap::MapEntry>> {
+pub(crate) fn choose_object_map(handles: &[u8], ver: DwgVersion, objects: &[u8], diagnostics: &mut Vec<Diagnostic>) -> Result<Vec<objmap::MapEntry>> {
     let score = |entries: &[objmap::MapEntry]| -> (usize, usize) {
         if entries.is_empty() {
             return (0, 0);

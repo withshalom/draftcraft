@@ -59,12 +59,19 @@ fn write_tables(w: &mut W, plan: TableWritePlan<'_>) -> HashMap<String, String> 
             ltype_style_refs.push((w.t.len(), el.style.clone(), kind == 4));
             w.s(340, "0");
             w.f(46, el.scale);
-            w.f(50, el.rotation);
+            // Degrees, as AutoCAD writes and reads them (DraftCraft wrote radians before marking
+            // its linetypes with LTYPE_DEGREES).
+            w.f(50, el.rotation.to_degrees());
             w.f(44, el.offset.x);
             w.f(45, el.offset.y);
             if let Some(t) = &el.text {
                 w.s(9, t.clone());
             }
+        }
+        // The rotations are degrees: said for DraftCraft's reader, as files before had radians.
+        if lt.pattern.iter().any(|el| el.text.is_some() || el.shape.is_some()) {
+            w.s(1001, dxf_ext::APP);
+            w.s(1000, dxf_ext::LTYPE_DEGREES);
         }
     }
     w.s(0, "ENDTAB");

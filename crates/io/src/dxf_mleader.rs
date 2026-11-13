@@ -34,19 +34,23 @@ const NO_COLOR: i64 = -939_524_096;
 /// of its block attributes by ATTDEF handle (all upper case).
 #[derive(Debug, Default)]
 pub(crate) struct Pending {
-    style: Option<String>,
-    attribs: Vec<(String, String)>,
+    pub(crate) style: Option<String>,
+    pub(crate) attribs: Vec<(String, String)>,
 }
 
 /// A point read group by group (x, then y and z).
 #[derive(Clone, Copy, Default)]
-struct P {
+pub(crate) struct P {
     x: Option<f64>,
     y: Option<f64>,
     z: Option<f64>,
 }
 
 impl P {
+    /// A point read whole (a DWG file holds each as three doubles).
+    pub(crate) fn at(v: Vec3) -> P {
+        P { x: Some(v.x), y: Some(v.y), z: Some(v.z) }
+    }
     /// Take group `code` when it is coordinate `base`, `base + 10` or `base + 20`.
     fn take(&mut self, base: i32, code: i32, v: f64) -> bool {
         let slot = match code - base {
@@ -63,52 +67,55 @@ impl P {
     }
 }
 
+/// One leader root: a landing point with its dogleg, and the leader lines that run to it.
 #[derive(Default)]
-struct Root {
-    landing: P,
-    dogleg: Option<f64>,
-    lines: Vec<Vec<Vec3>>,
+pub(crate) struct Root {
+    pub(crate) landing: P,
+    pub(crate) dogleg: Option<f64>,
+    pub(crate) lines: Vec<Vec<Vec3>>,
 }
 
+/// A multileader's values, as either file holds them: the DXF reader fills it group by group,
+/// the DWG reader field by field. [`build`] makes the drawing's multileader from it.
 #[derive(Default)]
-struct Parsed {
+pub(crate) struct Parsed {
     // Entity level.
-    style: Option<String>,
-    leader_type: Option<i64>,
-    dogleg_on: Option<bool>,
-    dogleg: Option<f64>,
-    arrow: Option<f64>,
-    content: Option<i64>,
-    text_style: Option<String>,
-    block: Option<String>,
-    block_scale: P,
-    block_rotation: Option<f64>,
-    attribs: Vec<(String, String)>,
+    pub(crate) style: Option<String>,
+    pub(crate) leader_type: Option<i64>,
+    pub(crate) dogleg_on: Option<bool>,
+    pub(crate) dogleg: Option<f64>,
+    pub(crate) arrow: Option<f64>,
+    pub(crate) content: Option<i64>,
+    pub(crate) text_style: Option<String>,
+    pub(crate) block: Option<String>,
+    pub(crate) block_scale: P,
+    pub(crate) block_rotation: Option<f64>,
+    pub(crate) attribs: Vec<(String, String)>,
     // CONTEXT_DATA.
-    base: P,
-    text_height: Option<f64>,
-    arrow_ctx: Option<f64>,
-    has_text: Option<bool>,
-    text: Option<String>,
-    text_style_ctx: Option<String>,
-    text_location: P,
-    text_direction: P,
-    text_rotation: Option<f64>,
-    text_width: Option<f64>,
-    line_spacing: Option<f64>,
-    line_spacing_style: Option<i64>,
+    pub(crate) base: P,
+    pub(crate) text_height: Option<f64>,
+    pub(crate) arrow_ctx: Option<f64>,
+    pub(crate) has_text: Option<bool>,
+    pub(crate) text: Option<String>,
+    pub(crate) text_style_ctx: Option<String>,
+    pub(crate) text_location: P,
+    pub(crate) text_direction: P,
+    pub(crate) text_rotation: Option<f64>,
+    pub(crate) text_width: Option<f64>,
+    pub(crate) line_spacing: Option<f64>,
+    pub(crate) line_spacing_style: Option<i64>,
     /// Text side (171: 1 left, 2 centre, 3 right).
-    side: Option<i64>,
+    pub(crate) side: Option<i64>,
     /// How the text's left / right side attaches to the landing (174 / 175, or 173 / 95 on
     /// the entity): which line of the text the landing points at.
-    left_attach: Option<i64>,
-    right_attach: Option<i64>,
-    has_block: Option<bool>,
-    block_ctx: Option<String>,
-    block_location: P,
-    block_scale_ctx: P,
-    block_rotation_ctx: Option<f64>,
-    roots: Vec<Root>,
+    pub(crate) left_attach: Option<i64>,
+    pub(crate) right_attach: Option<i64>,
+    pub(crate) has_block: Option<bool>,
+    pub(crate) block_ctx: Option<String>,
+    pub(crate) block_location: P,
+    pub(crate) block_scale_ctx: P,
+    pub(crate) block_rotation_ctx: Option<f64>,
+    pub(crate) roots: Vec<Root>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -263,7 +270,12 @@ fn parse(tags: &[Tag]) -> Parsed {
 /// A MULTILEADER record as a multileader. Names that come from handles (style, text style,
 /// block) are filled in by [`resolve`] and [`apply`].
 pub(crate) fn read(tags: &[Tag]) -> MLeader {
-    let p = parse(tags);
+    build(&parse(tags))
+}
+
+/// The drawing's multileader from a file's values. The names behind handles (style, text style,
+/// block) are each reader's to fill in.
+pub(crate) fn build(p: &Parsed) -> MLeader {
     let def = MLeaderStyle::default();
     let pos = |v: Option<f64>| v.filter(|x| *x > 0.0);
     // Leader lines: those of the first root run to its landing; a further root's lines get
@@ -303,7 +315,7 @@ pub(crate) fn read(tags: &[Tag]) -> MLeader {
             insert: text_location.unwrap_or(landing),
             height: pos(p.text_height).unwrap_or(def.text_height),
             width: p.text_width.unwrap_or(0.0).max(0.0),
-            attach: attach_point(&p, text_location.unwrap_or(landing).x < landing.x),
+            attach: attach_point(p, text_location.unwrap_or(landing).x < landing.x),
             rotation,
             style: def.text_style.clone(),
             contents: p.text.clone().unwrap_or_default(),

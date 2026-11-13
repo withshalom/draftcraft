@@ -91,7 +91,7 @@ fn handle(s: &str) -> Option<Handle> {
 }
 
 /// Group codes whose values are handles of other objects (DXF Reference, group code ranges).
-fn is_pointer(code: i32) -> bool {
+pub(crate) fn is_pointer(code: i32) -> bool {
     matches!(code, 320..=369 | 390..=399 | 480..=481 | 1005)
 }
 
@@ -174,7 +174,12 @@ fn is_dictionary(kind: &str) -> bool {
     kind == "DICTIONARY" || kind == "ACDBDICTIONARYWDFLT"
 }
 
-fn modelled_key(key: &str) -> bool {
+/// Whether an extension dictionary's entry `key` is one the drawing models (not kept raw).
+pub(crate) fn modelled_xdict_key(key: &str) -> bool {
+    MODELLED_XDICT_KEYS.contains(&up(key).as_str())
+}
+
+pub(crate) fn modelled_key(key: &str) -> bool {
     let k = up(key);
     k.starts_with("DRAFTCRAFT") || MODELLED_KEYS.contains(&k.as_str())
 }
@@ -223,7 +228,7 @@ fn identities(tables: &Recs, blocks: &Recs, objects: &Recs) -> HashMap<String, F
 
 /// Other applications' xdata of a record of type `kind`: whole applications, each with valid
 /// groups (codes 1000 and up, balanced `1002` braces), up to [`MAX_XDATA_GROUPS`].
-fn foreign_xdata(kind: &str, tags: &[Tag]) -> Vec<RawTag> {
+pub(crate) fn foreign_xdata(kind: &str, tags: &[Tag]) -> Vec<RawTag> {
     let Some(start) = tags.iter().position(|t| t.code == 1001) else { return Vec::new() };
     let rest = tags.get(start..).unwrap_or(&[]);
     let mut out = Vec::new();
@@ -621,7 +626,7 @@ pub(crate) fn data_store(tags: &mut Vec<Tag>, d: &Drawing, modern: bool) {
 }
 
 /// Drop a dictionary's modelled entries (key and handle) from its groups.
-fn strip_entries(tags: &mut Vec<RawTag>) {
+pub(crate) fn strip_entries(tags: &mut Vec<RawTag>) {
     let mut out = Vec::with_capacity(tags.len());
     let mut i = 0;
     while let Some(t) = tags.get(i) {

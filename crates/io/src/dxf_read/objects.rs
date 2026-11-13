@@ -156,66 +156,23 @@ impl Objects {
     /// Add the groups named by the ACAD_GROUP dictionary entries, with the members that exist.
     /// A name already present (compared case-insensitively) is replaced by the later definition.
     fn apply_groups(&self, d: &mut Drawing) {
-        // Names are matched through an index: a drawing can carry hundreds of thousands of
-        // (often empty) anonymous groups, and a linear search per group made loading quadratic
-        // (#862).
-        let mut by_name: HashMap<String, usize> = HashMap::new();
-        for (i, g) in d.groups.iter().enumerate() {
-            by_name.entry(g.name.to_ascii_lowercase()).or_insert(i);
-        }
-        for (h, tags) in &self.groups {
-            let Some(name) = self.names.get(h).filter(|n| !n.is_empty()) else { continue };
+        let groups = self.groups.iter().filter_map(|(h, tags)| {
+            let name = self.names.get(h).filter(|n| !n.is_empty())?;
             let t = T(tags);
-            let members: Vec<Handle> = tags
-                .iter()
-                .filter(|x| x.code == 340)
-                .filter_map(|x| Handle::parse_hex(&x.str()))
-                .filter(|m| d.entity(*m).is_some())
-                .take(MAX_OBJECTS)
-                .collect();
-            let g = Group { name: name.clone(), description: t.s(300).unwrap_or_default(), selectable: t.i(71).unwrap_or(1) != 0, members };
-            match by_name.get(&name.to_ascii_lowercase()).and_then(|&i| d.groups.get_mut(i)) {
-                Some(x) => *x = g,
-                None => {
-                    by_name.insert(name.to_ascii_lowercase(), d.groups.len());
-                    d.groups.push(g);
-                }
-            }
-        }
+            let members = tags.iter().filter(|x| x.code == 340).filter_map(|x| Handle::parse_hex(&x.str())).take(MAX_OBJECTS).collect();
+            Some(Group { name: name.clone(), description: t.s(300).unwrap_or_default(), selectable: t.i(71).unwrap_or(1) != 0, members })
+        });
+        put_groups(d, groups.collect());
     }
 
     pub(super) fn apply(self, d: &mut Drawing, rx: &Rx) {
         if let Some(v) = self.wipeout_frame {
             d.header.set_i64("WIPEOUTFRAME", v);
         }
-        if let Some(style) = self.xrecord_text(crate::dxf_ext::MLEADER_STYLE_KEY).filter(|s| !s.trim().is_empty()) {
-            d.header.set_str("CMLEADERSTYLE", &style);
-        }
         self.apply_table_styles(d);
         self.apply_table_style_fixes(d, rx);
-        // Parametric constraints and parameters.
-        if let Some((c, p)) = self.xrecord_text(crate::dxf_ext::CONSTRAINTS_KEY).and_then(|t| crate::dxf_ext::parse_constraints(&t)) {
-            d.constraints = c;
-            d.parametric = p;
-        }
-        // The annotation scale list (a metric drawing without one gets the metric defaults),
-        // then DraftCraft's annotative scaling record.
-        if !self.scales.is_empty() {
-            d.scales = self.scales.clone();
-        } else if d.header.i64("MEASUREMENT", 0) == 1 {
-            d.scales = draftcraft_doc::metric_scales();
-        }
-        if let Some(p) = self.xrecord_text(crate::dxf_ext::ANNOTATION_KEY).and_then(|t| crate::dxf_ext::parse_anno(&t)) {
-            crate::dxf_ext::apply_anno(d, p);
-        }
-        // Saved layer states.
-        if let Some(states) = self.xrecord_text(crate::dxf_ext::LAYER_STATES_KEY).and_then(|t| crate::dxf_ext::parse_layer_states(&t)) {
-            d.layer_states = states;
-        }
-        // The drawing's plot style tables.
-        if let Some(tables) = self.xrecord_text(crate::dxf_ext::PLOT_STYLES_KEY).and_then(|t| crate::dxf_ext::parse_plot_styles(&t)) {
-            d.plot_style_tables = tables;
-        }
+        apply_scales(d, &self.scales);
+        apply_own_records(d, &|key| self.xrecord_text(key));
         self.apply_mleader_styles(d, rx);
         crate::dxf_mleader::apply(d, &rx.mleader_fix, &self.names);
         for (name, view) in &self.layout_views {
@@ -227,6 +184,60 @@ impl Objects {
         // Standard associativity, for dimensions without DraftCraft's exact links.
         for tags in &self.dimassocs {
             dimassoc(d, tags);
+        }
+    }
+}
+
+/// The annotation scale list of a file (a metric drawing without one gets the metric defaults).
+/// The DWG reader uses it too.
+pub(crate) fn apply_scales(d: &mut Drawing, scales: &[draftcraft_doc::AnnoScale]) {
+    if !scales.is_empty() {
+        d.scales = scales.to_vec();
+    } else if d.header.i64("MEASUREMENT", 0) == 1 {
+        d.scales = draftcraft_doc::metric_scales();
+    }
+}
+
+/// What DraftCraft keeps in XRECORDs of the named object dictionary (`text` gives the 1/3
+/// strings of the record under a key): the current multileader style, the parametric
+/// constraints, the annotative scaling (after the scale list), the saved layer states and the
+/// plot style tables. The DWG reader uses it too.
+pub(crate) fn apply_own_records(d: &mut Drawing, text: &dyn Fn(&str) -> Option<String>) {
+    if let Some(style) = text(crate::dxf_ext::MLEADER_STYLE_KEY).filter(|s| !s.trim().is_empty()) {
+        d.header.set_str("CMLEADERSTYLE", &style);
+    }
+    if let Some((c, p)) = text(crate::dxf_ext::CONSTRAINTS_KEY).and_then(|t| crate::dxf_ext::parse_constraints(&t)) {
+        d.constraints = c;
+        d.parametric = p;
+    }
+    if let Some(p) = text(crate::dxf_ext::ANNOTATION_KEY).and_then(|t| crate::dxf_ext::parse_anno(&t)) {
+        crate::dxf_ext::apply_anno(d, p);
+    }
+    if let Some(states) = text(crate::dxf_ext::LAYER_STATES_KEY).and_then(|t| crate::dxf_ext::parse_layer_states(&t)) {
+        d.layer_states = states;
+    }
+    if let Some(tables) = text(crate::dxf_ext::PLOT_STYLES_KEY).and_then(|t| crate::dxf_ext::parse_plot_styles(&t)) {
+        d.plot_style_tables = tables;
+    }
+}
+
+/// Put the groups a file names in the drawing, with the members it has: a name already present
+/// (compared case-insensitively) is replaced by the later definition. The DWG reader uses it too.
+pub(crate) fn put_groups(d: &mut Drawing, groups: Vec<Group>) {
+    // Names are matched through an index: a drawing can carry hundreds of thousands of (often
+    // empty) anonymous groups, and a linear search per group made loading quadratic (#862).
+    let mut by_name: HashMap<String, usize> = HashMap::new();
+    for (i, g) in d.groups.iter().enumerate() {
+        by_name.entry(g.name.to_ascii_lowercase()).or_insert(i);
+    }
+    for mut g in groups {
+        g.members.retain(|m| d.entity(*m).is_some());
+        match by_name.get(&g.name.to_ascii_lowercase()).and_then(|&i| d.groups.get_mut(i)) {
+            Some(x) => *x = g,
+            None => {
+                by_name.insert(g.name.to_ascii_lowercase(), d.groups.len());
+                d.groups.push(g);
+            }
         }
     }
 }

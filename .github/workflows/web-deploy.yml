@@ -1,0 +1,91 @@
+# Builds DraftCraft's browser version (apps/draftcraft-web, wasm via Trunk) from `main` and publishes it to
+# GitHub Pages at https://app.draftcraft.dev/ (Settings › Pages › Source: GitHub Actions) on every push to
+# `main`, so the site is always the live main. Only in withshalom/draftcraft-app (WithShalom Studios' fork of
+# SkryxDev/DraftCraft); any other branch or repository builds nothing. This file is the fork's own: it is
+# not part of the pull requests sent upstream.
+name: web-deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+# A custom domain, when there is one: set it here and point its DNS at GitHub Pages.
+env:
+  CUSTOM_DOMAIN: app.draftcraft.dev
+  TRUNK_VERSION: 0.21.14
+  TRUNK_SHA256: f2b4680cd239693a646a2795e4633c625328d7b2a044fbe749fa3a2fe9e7036b
+
+jobs:
+  build:
+    # Only in withshalom/draftcraft-app, only from main.
+    if: github.repository == 'withshalom/draftcraft-app' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: 0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust (stable) with the wasm target
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo and target
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: web-deploy
+
+      - name: Install Trunk (checksum verified, as upstream's release does)
+        run: |
+          url="https://github.com/trunk-rs/trunk/releases/download/v${TRUNK_VERSION}/trunk-x86_64-unknown-linux-gnu.tar.gz"
+          curl --proto '=https' --proto-redir =https -fsSL -o "$RUNNER_TEMP/trunk.tar.gz" "$url"
+          echo "$TRUNK_SHA256  $RUNNER_TEMP/trunk.tar.gz" | sha256sum -c -
+          tar -xz -C "$HOME/.cargo/bin" -f "$RUNNER_TEMP/trunk.tar.gz" trunk
+          trunk --version
+
+      - name: Build (release)
+        working-directory: apps/draftcraft-web
+        run: trunk build --release
+
+      - name: Check the site uses relative URLs
+        run: |
+          test -f dist/web/index.html
+          if grep -Eq '(src|href)="/[^/]' dist/web/index.html; then
+            echo "index.html has root-absolute URLs" >&2
+            exit 1
+          fi
+
+      - name: Add Pages files
+        run: |
+          touch dist/web/.nojekyll
+          if [ -n "$CUSTOM_DOMAIN" ]; then echo "$CUSTOM_DOMAIN" > dist/web/CNAME; fi
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/web
+
+  deploy:
+    if: github.repository == 'withshalom/draftcraft-app' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

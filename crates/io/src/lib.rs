@@ -5,6 +5,7 @@
 /// What a DXF file holds that DraftCraft doesn't model, kept and written back (#528).
 mod dxf_raw;
 
+pub mod dwg;
 pub mod dwg_read;
 /// XCLIP boundaries as SPATIAL_FILTER objects.
 mod dxf_clip;
@@ -86,23 +87,28 @@ pub fn read(bytes: &[u8], name: impl AsRef<Path>) -> Result<Drawing> {
 /// Which reader opens DWG files.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DwgReader {
-    /// acadrust, through DXF (`draftcraft_dwg::acadrust`): the default while DraftCraft's own
-    /// reader doesn't cover everything a file can hold.
+    /// DraftCraft's direct reader ([`dwg::read`]): each object decoded field by field into the
+    /// drawing. The default: acadrust is not used to open files. What it leaves out is listed
+    /// in the drawing's read notes.
+    Direct,
+    /// acadrust, through DXF (`draftcraft_dwg::acadrust`): kept for comparison until it is
+    /// removed, used only when asked for.
     Acadrust,
-    /// DraftCraft's own reader ([`dwg_read`]), straight into the drawing. What it leaves out is
-    /// listed in the drawing's read notes.
+    /// The first native mapping ([`dwg_read`]), over BlackCAD's records.
     Native,
-    /// DraftCraft's own reader when it carries the whole file over, acadrust otherwise.
+    /// The first native mapping when it carries the whole file over, acadrust otherwise.
     Auto,
 }
 
 impl DwgReader {
-    /// `DRAFTCRAFT_DWG_READER=native`, `auto` or `acadrust` (the default).
+    /// `DRAFTCRAFT_DWG_READER=acadrust`, `native` or `auto` to compare; anything else, or nothing,
+    /// is the direct reader. (A browser has no environment: it always reads directly.)
     pub fn from_env() -> DwgReader {
         match std::env::var("DRAFTCRAFT_DWG_READER").unwrap_or_default().to_ascii_lowercase().as_str() {
+            "acadrust" => DwgReader::Acadrust,
             "native" => DwgReader::Native,
             "auto" => DwgReader::Auto,
-            _ => DwgReader::Acadrust,
+            _ => DwgReader::Direct,
         }
     }
 }
@@ -116,6 +122,11 @@ pub fn read_dwg_with(bytes: &[u8], reader: DwgReader) -> Result<Drawing> {
 /// round-trip harness counts against).
 fn read_dwg_source(bytes: &[u8], reader: DwgReader) -> Result<(Drawing, Option<Vec<u8>>)> {
     let limits = draftcraft_dwg::Limits::DEFAULT;
+    if reader == DwgReader::Direct {
+        let (mut d, unread) = dwg::read(bytes)?;
+        d.read_notes.extend(unread.note());
+        return Ok((d, None));
+    }
     if reader != DwgReader::Acadrust {
         if bytes.len() > limits.max_dwg_bytes {
             return Err(IoError::Format(format!("DWG: the file is larger than the {} MB DraftCraft opens", limits.max_dwg_bytes >> 20)));

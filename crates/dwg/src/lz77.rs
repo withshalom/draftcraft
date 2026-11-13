@@ -17,8 +17,13 @@
 //!   byte offset; the spec mentions only the `11`;
 //! - no copy is shorter than four bytes (no `0x4X` near opcode, no `0x21`);
 //! - far copies (more than 0x4000 back) use `0x12`–`0x16` for four to
-//!   eight bytes and `0x10` with a count beyond that, never `0x18`–`0x1F`,
-//!   which the spec reads as lengths 10–17 but AutoCAD never writes.
+//!   eight bytes and `0x10` with a count beyond that, never `0x18`–`0x1F`.
+//!
+//! Those are far copies too: the opcode is `0001HLLL`, H adding 0x4000 to
+//! the distance and LLL the length less two (0: a count follows), as in LZO.
+//! AutoCAD's small files never reach that far back, but a large system page
+//! (a big drawing's section or page map) does, and other writers use them:
+//! the decompressor reads them so. The compressor keeps to 0x7FFF back.
 //!
 //! Its tests check every output by decompressing it again.
 
@@ -251,6 +256,21 @@ impl Input<'_> {
     }
 }
 
+/// A far copy's length (opcodes 0x10–0x1F): its low three bits less two, or with none set, the
+/// count that follows plus nine.
+fn far_count(inp: &mut Input, op: u8) -> Result<usize> {
+    match op & 0x07 {
+        0 => Ok(inp.long_count()? + 9),
+        n => Ok(n as usize + 2),
+    }
+}
+
+/// A far copy's offset (the distance less one): the two-byte offset, 0x4000 more when the
+/// opcode's bit 3 is set, past the near copies' 0x3FFF.
+fn far_offset(op: u8, off: usize) -> usize {
+    (off | (usize::from(op & 0x08) << 11)) + 0x3FFF
+}
+
 /// Decompress one page. `expected` is the decompressed size recorded in the
 /// page header; producing more than that is treated as corruption.
 pub fn decompress(src: &[u8], expected: usize) -> Result<Vec<u8>> {
@@ -282,15 +302,13 @@ pub fn decompress(src: &[u8], expected: usize) -> Result<Vec<u8>> {
             break;
         }
         let (count, offset, literals) = match op {
-            0x10 => {
-                let count = inp.long_count()? + 9;
+            // Far copies, `0001HLLL`: H adds 0x4000 to the distance, LLL is the length less
+            // two (0: a count follows). 0x11 (the end) is the one opcode of the range that is
+            // not a copy.
+            0x10 | 0x12..=0x1F => {
+                let count = far_count(&mut inp, op)?;
                 let (off, lit) = inp.two_byte_offset()?;
-                (count, off + 0x3FFF, lit)
-            }
-            0x12..=0x1F => {
-                let count = (op & 0x0F) as usize + 2;
-                let (off, lit) = inp.two_byte_offset()?;
-                (count, off + 0x3FFF, lit)
+                (count, far_offset(op, off), lit)
             }
             0x20 => {
                 let count = inp.long_count()? + 0x21;
@@ -363,8 +381,7 @@ pub(crate) fn copies(src: &[u8]) -> Result<(Vec<Copy>, Vec<u8>)> {
     }
     while op != 0x11 {
         let (len, offset, mut literals) = match op {
-            0x10 => (inp.long_count()? + 9, inp.two_byte_offset().map(|(o, l)| (o + 0x3FFF, l))?),
-            0x12..=0x1F => ((op & 0x0F) as usize + 2, inp.two_byte_offset().map(|(o, l)| (o + 0x3FFF, l))?),
+            0x10 | 0x12..=0x1F => (far_count(&mut inp, op)?, inp.two_byte_offset().map(|(o, l)| (far_offset(op, o), l))?),
             0x20 => (inp.long_count()? + 0x21, inp.two_byte_offset()?),
             0x21..=0x3F => (op as usize - 0x1E, inp.two_byte_offset()?),
             0x40..=0xFF => {
@@ -614,5 +631,83 @@ mod robustness {
                 .collect();
             let _ = super::decompress(&src, 0x7400);
         }
+    }
+}
+
+/// Far copies with bit 3 of the opcode set (`0x18`–`0x1F`): 0x4000 further back, their length in
+/// the low three bits. A large system page holds them (a section map of more than 48 KB, written
+/// by acadrust for a drawing of 600 000 entities); the decoder read them as lengths 10–17 at the
+/// near distance and refused the page.
+#[cfg(test)]
+mod far_copies {
+    use super::decompress;
+
+    /// `n` bytes no copy can shorten.
+    fn noise(n: usize) -> Vec<u8> {
+        let mut x: u64 = 0x9E37_79B9_7F4A_7C15;
+        (0..n)
+            .map(|_| {
+                x ^= x << 13;
+                x ^= x >> 7;
+                x ^= x << 17;
+                x as u8
+            })
+            .collect()
+    }
+
+    /// A stream of `data` as one literal run (it must hold 0x12 bytes or more), then `copy`, then
+    /// the end: `11 00 00`.
+    fn stream(data: &[u8], copy: &[u8]) -> Vec<u8> {
+        // Literal length: 0x00, then each 0x00 adds 0xFF, the first other byte ends; plus 0x12.
+        let mut rest = data.len() - 0x12;
+        let mut s = vec![0x00];
+        while rest > 0xFF {
+            s.push(0x00);
+            rest -= 0xFF;
+        }
+        s.push(u8::try_from(rest.max(1)).unwrap_or(1));
+        assert_eq!(rest.max(1), rest, "a literal run this long can't be written");
+        s.extend_from_slice(data);
+        s.extend_from_slice(copy);
+        s.extend_from_slice(&[0x11, 0x00, 0x00]);
+        s
+    }
+
+    #[test]
+    fn a_far_copy_with_the_high_distance_bit() {
+        // 0x1A = 0001 1 010: 0x4000 further, four bytes; offset 0 → 0x8000 bytes back.
+        let data = noise(0x8010 + 1);
+        let s = stream(&data, &[0x1A, 0x00, 0x00]);
+        let out = decompress(&s, data.len() + 4).unwrap();
+        let mut want = data.clone();
+        let from = data.len() - 0x8000;
+        want.extend_from_slice(&data[from..from + 4]);
+        assert_eq!(out, want);
+    }
+
+    #[test]
+    fn a_far_copy_with_the_high_distance_bit_and_a_count() {
+        // 0x18 = 0001 1 000: 0x4000 further, the length in the count that follows (+ 9); the
+        // two-byte offset 0x0123 → 0x8123 back.
+        let data = noise(0x9000);
+        let count = 30;
+        let s = stream(&data, &[0x18, u8::try_from(count - 9).unwrap(), 0x0123u16.to_le_bytes()[0] << 2, (0x0123 >> 6) as u8]);
+        let out = decompress(&s, data.len() + count).unwrap();
+        let mut want = data.clone();
+        let from = data.len() - 0x8123;
+        want.extend_from_slice(&data[from..from + count]);
+        assert_eq!(out, want);
+    }
+
+    #[test]
+    fn a_far_copy_without_it_is_unchanged() {
+        // 0x15 = 0001 0 101: seven bytes, 0x4000 + offset back.
+        let data = noise(0x5000);
+        let s = stream(&data, &[0x15, 0x08 << 2, 0x00]);
+        let out = decompress(&s, data.len() + 7).unwrap();
+        let mut want = data.clone();
+        let from = data.len() - (0x4000 + 0x08);
+        want.extend_from_slice(&data[from..from + 7]);
+        assert_eq!(out, want);
     }
 }

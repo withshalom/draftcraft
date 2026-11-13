@@ -96,22 +96,50 @@ fn lwpolyline(tags: &[Tag], c: &Common, t: &T) -> Option<EntityKind> {
 
 fn spline(t: &T) -> Spline {
     let degree = t.i(71).unwrap_or(3).clamp(1, 10) as usize;
-    let knots = t.all_f(40);
-    let control = t.pts(10);
-    let weights = t.all_f(41);
-    let fit = t.pts(11);
     let tangent = |c: i32| t.f(c).map(|_| t.p(c).xy());
+    let parts = SplineParts {
+        degree,
+        knots: t.all_f(40),
+        control: t.pts(10),
+        weights: t.all_f(41),
+        fit: t.pts(11),
+        start_tangent: tangent(12),
+        end_tangent: tangent(13),
+        tolerance: t.fd(44, 0.0),
+        closed: t.i(70).unwrap_or(0) & 1 != 0,
+    };
+    spline_from(parts)
+}
+
+/// A spline as a file stores it.
+pub(crate) struct SplineParts {
+    pub degree: usize,
+    pub knots: Vec<f64>,
+    pub control: Vec<Vec2>,
+    pub weights: Vec<f64>,
+    pub fit: Vec<Vec2>,
+    pub start_tangent: Option<Vec2>,
+    pub end_tangent: Option<Vec2>,
+    pub tolerance: f64,
+    pub closed: bool,
+}
+
+/// The drawing's spline from a file's: rebuilt from its fit points or control points when what
+/// the file holds is not a valid curve, and with how its fit points were spaced recovered from the
+/// knots. The DWG reader uses it too, so a spline means the same from either format.
+pub(crate) fn spline_from(p: SplineParts) -> Spline {
     let fit_opts =
-        draftcraft_geom::FitOptions { knots: Default::default(), start_tangent: tangent(12), end_tangent: tangent(13), tolerance: t.fd(44, 0.0) }
+        draftcraft_geom::FitOptions { knots: Default::default(), start_tangent: p.start_tangent, end_tangent: p.end_tangent, tolerance: p.tolerance }
             .sanitized();
-    let closed = t.i(70).unwrap_or(0) & 1 != 0;
-    let mut sp = Spline { degree, knots, control, weights, fit: fit.clone(), closed, fit_opts };
+    let degree = p.degree.clamp(1, 10);
+    let fit = p.fit;
+    let mut sp = Spline { degree, knots: p.knots, control: p.control, weights: p.weights, fit: fit.clone(), closed: p.closed, fit_opts };
     if !sp.is_valid() && fit.len() >= 2 {
         sp = Spline::fit_with(&fit, sp.closed, fit_opts);
     } else if !sp.is_valid() && sp.control.len() >= 2 {
         sp = Spline::from_control(sp.control.clone(), degree);
     } else if fit.len() >= 3 {
-        // DXF keeps the knots, not how they were spaced: recover it for later refits.
+        // A file keeps the knots, not how they were spaced: recover it for later refits.
         sp.fit_opts.knots = sp.infer_knot_param();
     }
     sp
@@ -343,6 +371,23 @@ pub(super) fn acad_table(tags: &[Tag], table_cells_left: &mut usize) -> Table {
         let c = T(cell);
         let mut text: String = cell.iter().filter(|x| x.code == 2 || x.code == 3).map(Tag::str).collect();
         text.push_str(&c.s(1).unwrap_or_default());
+        // A value that is no string (a number, angle, date, point…) shows as its value block's
+        // formatted text (302), as AutoCAD writes it: "0.500000", "60", "35.00%". The DWG reader
+        // has the same rule.
+        if text.is_empty() {
+            let mut in_value = false;
+            for x in cell {
+                match x.code {
+                    301 => in_value = true,
+                    304 => in_value = false,
+                    302 if in_value => {
+                        text = x.str();
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+        }
         let span = |code: i32| c.i(code).and_then(|v| u32::try_from(v).ok());
         // A merge starts at the cell whose span (rows 176, columns 175) is more than one cell.
         // Its own merged flag (173) varies by writer: DraftCraft sets it, while AutoCAD-style
@@ -366,6 +411,15 @@ pub(super) fn acad_table(tags: &[Tag], table_cells_left: &mut usize) -> Table {
     }
     flat.resize(rows * cols, TableCell::default());
     let cells: Vec<Vec<TableCell>> = if cols == 0 { vec![Vec::new(); rows] } else { flat.chunks(cols).map(<[TableCell]>::to_vec).collect() };
+    table_from(T(tags).p(10), col_widths, row_heights, cells, tags)
+}
+
+/// A table from what either file holds: its insertion point, sizes and cells, with DraftCraft's
+/// extended data (`tags`: title and header rows, text height, style, cell styles, formulas,
+/// breaks, data link). A table from another writer reads its first row merged across every
+/// column as a title; its text height is its style's, resolved once the styles are read.
+pub(crate) fn table_from(insert: Vec3, col_widths: Vec<f64>, row_heights: Vec<f64>, cells: Vec<Vec<TableCell>>, tags: &[Tag]) -> Table {
+    let cols = col_widths.len();
     let x = crate::dxf_ext::xdata(tags, crate::dxf_ext::APP);
     let ours = x.iter().position(|t| t.code == 1000 && t.str() == "TABLE").map(|p| x.get(p + 1..).unwrap_or(&[]));
     let (title, header, text_height, style) = match ours {
@@ -379,7 +433,7 @@ pub(super) fn acad_table(tags: &[Tag], table_cells_left: &mut usize) -> Table {
         // Their text height is resolved to the table style's once the styles are read (`apply`).
         None => (cols > 1 && cells.first().and_then(|r| r.first()).and_then(|c| c.merged) == Some((1, cols as u32)), false, 0.0, "Standard".into()),
     };
-    let mut t = Table { insert: T(tags).p(10), col_widths, row_heights, cells, style, text_height, title, header, ..Table::default() };
+    let mut t = Table { insert, col_widths, row_heights, cells, style, text_height, title, header, ..Table::default() };
     crate::dxf_table::read_table_xdata(tags, &mut t);
     t
 }
@@ -604,10 +658,18 @@ pub(super) fn insert_attribs(recs: &[(String, Vec<Tag>)], i: &mut usize, ins_lay
 /// Quads of an M×N polygon mesh (71/72, or the smoothed 73/74 when the vertex count matches
 /// those), closed in M by bit 1 and in N by bit 32. Vertices run row by row.
 fn mesh_faces(verts: &[Vec3], t: &T, flags: i64) -> Vec<Face3d> {
-    let dims = |a: i32, b: i32| Some((usize::try_from(t.i(a)?).ok()?, usize::try_from(t.i(b)?).ok()?));
+    let dims = |a: i32, b: i32| Some((t.i(a)?, t.i(b)?));
+    mesh_faces_of(verts, dims(71, 72), dims(73, 74), flags)
+}
+
+/// Quads of an M×N polygon mesh of `size` (M, N) or, when the vertex count matches it, `smooth`
+/// (the smoothed surface's M, N), closed in M by `flags` bit 1 and in N by bit 32. The DWG reader
+/// uses it too.
+pub(crate) fn mesh_faces_of(verts: &[Vec3], size: Option<(i64, i64)>, smooth: Option<(i64, i64)>, flags: i64) -> Vec<Face3d> {
+    let dims = |d: Option<(i64, i64)>| d.and_then(|(a, b)| Some((usize::try_from(a).ok()?, usize::try_from(b).ok()?)));
     let fits = |(m, n): (usize, usize)| m >= 2 && n >= 2 && m.checked_mul(n).is_some_and(|mn| mn <= verts.len());
     let exact = |(m, n): (usize, usize)| fits((m, n)) && m * n == verts.len();
-    let Some((m, n)) = [dims(71, 72), dims(73, 74)].into_iter().flatten().find(|d| exact(*d)).or_else(|| dims(71, 72).filter(|d| fits(*d))) else {
+    let Some((m, n)) = [dims(size), dims(smooth)].into_iter().flatten().find(|d| exact(*d)).or_else(|| dims(size).filter(|d| fits(*d))) else {
         return Vec::new();
     };
     let at = |i: usize, j: usize| verts.get((i % m) * n + j % n).copied();
@@ -627,7 +689,7 @@ fn mesh_faces(verts: &[Vec3], t: &T, flags: i64) -> Vec<Face3d> {
 /// A HELIX (DXF Reference): the axis base point, start point, axis, radius, turns, turn height,
 /// handedness and constraint after the AcDbHelix marker; the top radius is how far the end of its
 /// spline (AcDbSpline: the last control point, else fit point) lies from the axis.
-fn helix(tags: &[Tag]) -> Helix {
+pub(crate) fn helix(tags: &[Tag]) -> Helix {
     let hs = tags.iter().position(|t| t.code == 100 && t.str() == "AcDbHelix").unwrap_or(tags.len());
     let ss = tags.iter().position(|t| t.code == 100 && t.str() == "AcDbSpline").unwrap_or(0).min(hs);
     let spline = tags.get(ss..hs).unwrap_or(&[]);

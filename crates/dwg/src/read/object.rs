@@ -21,6 +21,8 @@ pub(crate) struct DecodeCtx<'a> {
     pub ver: DwgVersion,
     pub codepage: u16,
     pub classes: &'a [ClassDef],
+    /// How text becomes strings.
+    pub text: crate::records::text::TextDecoding,
 }
 
 /// Name and entity/non-entity classification of the fixed object types.
@@ -200,6 +202,9 @@ pub(crate) struct Opened<'a> {
     pub num_reactors: u32,
     pub xdic_missing: bool,
     pub xdata: Vec<XData>,
+    /// The entity that follows this one in its block's chain (up to AutoCAD 2000), when the
+    /// entity stores it; `None` when the next object of the file follows.
+    pub next_entity: Option<u64>,
     pub s: Streams<'a>,
 }
 
@@ -229,7 +234,7 @@ pub(crate) fn open<'a>(ctx: &DecodeCtx, data: &'a [u8], offset: usize) -> Result
         0
     };
     let handle = dat.handle()?.value;
-    let xdata = eed::read(&mut dat, ver, handle)?;
+    let xdata = eed::read(&mut dat, ver, handle, Some(ctx.text))?;
 
     let (type_name, is_entity) = classify(type_code, ctx.classes);
 
@@ -269,7 +274,7 @@ pub(crate) fn open<'a>(ctx: &DecodeCtx, data: &'a [u8], offset: usize) -> Result
         };
         // Color: BS index up to R2000, ENC from R2004.
         {
-            let mut tmp = Streams { ver, codepage: ctx.codepage, dat, strs: None, hdl: None };
+            let mut tmp = Streams { ver, codepage: ctx.codepage, dat, strs: None, hdl: None, text: ctx.text };
             let (color, transparency, color_handle) = tmp.enc()?;
             dat = tmp.dat;
             ent.color = color;
@@ -349,7 +354,8 @@ pub(crate) fn open<'a>(ctx: &DecodeCtx, data: &'a [u8], offset: usize) -> Result
         num_reactors,
         xdic_missing,
         xdata,
-        s: Streams { ver, codepage: ctx.codepage, dat, strs, hdl: Some(hdl) },
+        next_entity: None,
+        s: Streams { ver, codepage: ctx.codepage, dat, strs, hdl: Some(hdl), text: ctx.text },
     })
 }
 
@@ -363,6 +369,7 @@ pub(crate) fn common_handles(o: &mut Opened) -> Result<(u64, Vec<Handle>, u64)> 
     let mut owner = 0u64;
     let mut reactors = Vec::new();
     let mut xdictionary = 0u64;
+    let mut next_entity = None;
     if o.is_entity {
         let Some(ent) = o.common.as_mut() else {
             return Err(Error::format("entity without its common data"));
@@ -385,10 +392,10 @@ pub(crate) fn common_handles(o: &mut Opened) -> Result<(u64, Vec<Handle>, u64)> 
         }
         if ver <= V::R2000 && !flags.no_links {
             let _prev = s.h()?;
-            let _next = s.h()?;
+            next_entity = Some(s.h_abs(handle)?);
         }
         if ver >= V::R2004 && flags.color_handle {
-            let _color_book = s.h()?;
+            ent.color_book = Handle(s.h_abs(handle)?);
         }
         if ver >= V::R2000 {
             ent.layer = Handle(s.h_abs(handle)?);
@@ -419,6 +426,7 @@ pub(crate) fn common_handles(o: &mut Opened) -> Result<(u64, Vec<Handle>, u64)> 
             xdictionary = s.h_abs(handle)?;
         }
     }
+    o.next_entity = next_entity;
     Ok((owner, reactors, xdictionary))
 }
 
@@ -788,7 +796,7 @@ mod tests {
             0x25, 0x00, 0x4D, 0x40, 0x44, 0x20, 0x20, 0x10, 0x00, 0x09, 0x08, 0x53, 0x54, 0x41, 0x4E, 0x44, 0x41, 0x52, 0x44, 0xC2, 0x60, 0x02, 0x6A,
             0x66, 0x66, 0x66, 0x66, 0x67, 0x24, 0xFD, 0x03, 0x74, 0x78, 0x74, 0x90, 0x40, 0xCC, 0x14, 0x28, 0xEC, 0x6E,
         ];
-        let ctx = DecodeCtx { ver: V::R14, codepage: 30, classes: &[] };
+        let ctx = DecodeCtx { ver: V::R14, codepage: 30, classes: &[], text: Default::default() };
         let o = decode(&ctx, &bytes, 0).unwrap();
         assert_eq!(o.type_name, "STYLE");
         assert_eq!(o.handle, Handle(0x10));
@@ -818,7 +826,7 @@ mod tests {
             0xAC, 0x2E, 0x6C, 0x8C, 0xCF, 0x6B, 0x88, 0xCC, 0xEC, 0x8E, 0x87, 0x6D, 0xAF, 0xA4, 0xA4, 0xAE, 0xC4, 0xA4, 0xAE, 0xC4, 0xA4, 0xAE, 0xC4,
             0xA4, 0xAE, 0xC6, 0x0A, 0x21, 0xF8, 0x20, 0x4C, 0x0A, 0x23, 0xB4, 0x45, 0x2F,
         ];
-        let ctx = DecodeCtx { ver: V::R14, codepage: 30, classes: &[] };
+        let ctx = DecodeCtx { ver: V::R14, codepage: 30, classes: &[], text: Default::default() };
         let o = decode(&ctx, &bytes, 0).unwrap();
         assert_eq!(o.type_name, "TOLERANCE");
         assert_eq!(o.handle, Handle(0x10C));
@@ -844,7 +852,7 @@ mod tests {
         let bytes = hex(
             "e4004bc0804366c83000055b200461ad1ef213a88a0181933c67d42bc07f528081206461ad1ef213a88a0181933c67d42bc07f13e9cf70de473cc7e4f86a7b9c002f39fc4e86a7b9c002f3df93e9cf70de473cc7f2055204000000000000785fd038dd69b078de3880440a1c33bde105204062c65315c95771f9fb6cf09b58b3ab7f05473cf47b0b79b7e08f921ddcd12f79fc81548118d6ba82c020de77f42750a165460292a013161543da240028101cb194c57255dc7e7f5b3c26d62ceadfc765b3c26d62cea9f820b194c57255dc7f2055204000000000000785fd182887c05087288e4c9188",
         );
-        let ctx = DecodeCtx { ver: V::R14, codepage: 30, classes: &[] };
+        let ctx = DecodeCtx { ver: V::R14, codepage: 30, classes: &[], text: Default::default() };
         let o = decode(&ctx, &bytes, 0).unwrap();
         assert_eq!((o.type_name.as_str(), o.handle), ("MLINE", Handle(0x10D)));
         assert_eq!(o.note, None, "handles read cleanly");
@@ -895,7 +903,7 @@ mod tests {
     #[test]
     fn the_specifications_image_example_decodes() {
         let (bytes, classes) = raster_example("IMAGE");
-        let ctx = DecodeCtx { ver: V::R14, codepage: 30, classes: &classes };
+        let ctx = DecodeCtx { ver: V::R14, codepage: 30, classes: &classes, text: Default::default() };
         let o = decode(&ctx, &bytes, 0).unwrap();
         assert_eq!((o.type_name.as_str(), o.handle), ("IMAGE", Handle(0x6D)));
         assert_eq!(o.note, None, "handles read cleanly");
@@ -918,7 +926,7 @@ mod tests {
     fn groups_example(name: &str) -> Groups {
         let (bytes, classes) = raster_example(name);
         let ver = V::R14;
-        let mut o = decode(&DecodeCtx { ver, codepage: 30, classes: &classes }, &bytes, 0).unwrap();
+        let mut o = decode(&DecodeCtx { ver, codepage: 30, classes: &classes, text: Default::default() }, &bytes, 0).unwrap();
         assert_eq!(o.type_name, name);
         o.raw = Some(raw(ver, &bytes, 0).unwrap());
         let lookup = crate::read::styles::Lookup::empty();
@@ -989,7 +997,7 @@ mod tests {
     /// decodes. Each must also end exactly where its strings begin.
     #[test]
     fn r2018_table_records_from_a_real_file() {
-        let ctx = DecodeCtx { ver: V::R2018, codepage: 30, classes: &[] };
+        let ctx = DecodeCtx { ver: V::R2018, codepage: 30, classes: &[], text: Default::default() };
         let appid = frame(27, &hex("10c044aa8010441004300410044004a00a084a87"));
         let o = decode(&ctx, &appid, 0).unwrap();
         assert_eq!(o.handle, Handle(0x12));
@@ -1040,7 +1048,7 @@ mod tests {
         ];
         let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
         for ver in [V::R14, V::R2000, V::R2004, V::R2007, V::R2010, V::R2013, V::R2018] {
-            let ctx = DecodeCtx { ver, codepage: 30, classes: &classes };
+            let ctx = DecodeCtx { ver, codepage: 30, classes: &classes, text: Default::default() };
             for i in 0..4000 {
                 let len = 4 + (rng.next() % 600) as usize;
                 let mut buf = rng.bytes(len);

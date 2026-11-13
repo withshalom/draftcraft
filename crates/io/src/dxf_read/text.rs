@@ -131,7 +131,7 @@ pub(super) fn text_from(t: &T) -> Text {
 /// insertion point towards -x in the WCS, with mirrored glyphs. DraftCraft draws text readable
 /// (MIRRTEXT = 0), so it keeps the mirrored footprint: the direction turns to -rotation and
 /// left/right justification swap ends (start ↔ end point).
-fn mirror_text(t: &mut Text, align: Option<Vec3>, insert: Vec3) {
+pub(crate) fn mirror_text(t: &mut Text, align: Option<Vec3>, insert: Vec3) {
     t.rotation = draftcraft_geom::norm_angle(-t.rotation);
     let baseline_left = |t: &Text, p: Vec3| if t.valign == VAlign::Baseline { None } else { Some(p) };
     match t.halign {

@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>DraftCraft</title>
   <link data-trunk rel="rust" data-bin="draftcraft-web" data-wasm-opt="z" data-weak-refs />
+  <link data-trunk rel="icon" href="../../assets/app-icon/draftcraft-64.png" type="image/png" />
+  <link data-trunk rel="copy-file" href="../../assets/app-icon/draftcraft-256.png" />
+  <link rel="apple-touch-icon" href="draftcraft-256.png" />
+  <!-- Installable app (PWA): the manifest, its 512 px icon, and the service worker that keeps a copy for offline use. -->
+  <link data-trunk rel="copy-file" href="manifest.webmanifest" />
+  <link data-trunk rel="copy-file" href="../../assets/app-icon/hicolor/512x512/apps/dev.skryx.draftcraft.png" />
+  <link data-trunk rel="copy-file" href="sw.js" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#313844" />
   <style>
     html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #22282f; }
     #draftcraft_canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
@@ -14,6 +23,10 @@
 </head>
 <body>
   <canvas id="draftcraft_canvas"></canvas>
-  <div id="draftcraft_loading">Loading DraftCraft&hellip;</div>
+  <div id="draftcraft_loading"><img src="draftcraft-256.png" width="96" height="96" alt="" style="margin-bottom:16px">Loading DraftCraft&hellip;</div>
+  <script>
+    // Register the service worker once the page has loaded, so it never delays the app's start.
+    if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  </script>
 </body>
 </html>

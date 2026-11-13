@@ -146,7 +146,7 @@ pub(super) fn read_objects(tags: &[Tag], objs: &mut Objects, layout_objs: &mut V
 /// A LAYOUT's limits (groups 10/20 and 11/21 after the AcDbLayout marker), when both corners
 /// are there and usable, so a save writes back the file's own (#2109). The 0,0 to 12,9 a
 /// layout without its own limits writes reads back as none.
-fn limits(t: &T) -> Option<(Vec2, Vec2)> {
+pub(super) fn limits(t: &T) -> Option<(Vec2, Vec2)> {
     let corner = |x: i32, y: i32| Some(Vec2::new(t.f(x)?, t.f(y)?)).filter(|p| p.is_finite() && p.x.abs() < 1e12 && p.y.abs() < 1e12);
     corner(10, 20).zip(corner(11, 21)).filter(|l| *l != (Vec2::ZERO, Vec2::new(12.0, 9.0)))
 }

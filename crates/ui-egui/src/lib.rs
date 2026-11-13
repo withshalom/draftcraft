@@ -938,7 +938,13 @@ impl CadApp {
         if self.own_window_frame {
             window_frame::title_bar(self, ui);
         }
+        // The web build: the menus are the top row, as in DraftCraft's own title bar on Windows.
+        #[cfg(target_arch = "wasm32")]
+        if self.ui.in_window_menu {
+            menus::web_top_row(self, ui);
+        }
         ribbon::title_and_ribbon(self, ui);
+        #[cfg(not(target_arch = "wasm32"))]
         if self.ui.in_window_menu && !self.own_window_frame {
             menus::menu_bar(self, ui);
         }

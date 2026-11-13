@@ -49,7 +49,7 @@ const LAYER: u16 = 0x33;
 /// just past the terminating zero length. Applications are returned by
 /// handle; [`resolve`] names them once every object is loaded. `own`
 /// is the object's handle, for references stored relative to it.
-pub(crate) fn read(dat: &mut BitReader, ver: DwgVersion, own: u64) -> Result<Vec<XData>> {
+pub(crate) fn read(dat: &mut BitReader, ver: DwgVersion, own: u64, text: Option<text::TextDecoding>) -> Result<Vec<XData>> {
     let mut out = Vec::new();
     loop {
         let size = dat.bs()? as usize;
@@ -58,19 +58,26 @@ pub(crate) fn read(dat: &mut BitReader, ver: DwgVersion, own: u64) -> Result<Vec
         }
         let app = dat.handle()?.absolute(own);
         let data = dat.raw_bytes(size)?;
-        out.push(XData { app: XDataApp::Handle(Handle(app)), items: items(&data, ver) });
+        out.push(XData { app: XDataApp::Handle(Handle(app)), items: items_with(&data, ver, text) });
     }
 }
 
 /// Decode one application's items. An item that cannot be decoded ends
 /// the list with an [`XValue::Undecoded`] holding the rest of the bytes, so
 /// nothing is lost.
+#[cfg(test)]
 pub(crate) fn items(data: &[u8], ver: DwgVersion) -> Vec<XValue> {
+    items_with(data, ver, None)
+}
+
+/// [`items`], with the strings decoded by `text` when given (every code page, every escape)
+/// rather than kept byte for byte in Windows-1252.
+pub(crate) fn items_with(data: &[u8], ver: DwgVersion, text: Option<text::TextDecoding>) -> Vec<XValue> {
     let mut out = Vec::new();
     let mut p = 0usize;
     while p < data.len() {
         let start = p;
-        match item(data, &mut p, ver) {
+        match item(data, &mut p, ver, text) {
             Ok(v) => out.push(v),
             Err(_) => {
                 out.push(XValue::Undecoded { version: ver, data: data[start..].to_vec() });
@@ -113,13 +120,14 @@ fn is_cp1252(codepage: u16) -> bool {
     matches!(codepage, 30 | 1252)
 }
 
-fn string(data: &[u8], p: &mut usize, ver: DwgVersion) -> Result<String> {
+fn string(data: &[u8], p: &mut usize, ver: DwgVersion, decoding: Option<text::TextDecoding>) -> Result<String> {
     if ver >= DwgVersion::R2007 {
         // RS length in characters, then UTF-16LE.
         let n = u16::from_le_bytes(fixed::<2>(data, p)?) as usize;
         let bytes = take(data, p, n * 2)?;
         let units: Vec<u16> = bytes.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect();
-        String::from_utf16(&units).map_err(|_| Error::format("group 1000: invalid UTF-16"))
+        let s = String::from_utf16(&units).map_err(|_| Error::format("group 1000: invalid UTF-16"))?;
+        Ok(decoding.map_or(s.clone(), |d| (d.unicode)(s)))
     } else {
         // RC length, RS code page, then that many 8-bit characters.
         let n = fixed::<1>(data, p)?[0] as usize;
@@ -127,6 +135,9 @@ fn string(data: &[u8], p: &mut usize, ver: DwgVersion) -> Result<String> {
         let (be, le) = (u16::from_be_bytes(raw), u16::from_le_bytes(raw));
         let codepage = if !is_cp1252(be) && is_cp1252(le) { le } else { be };
         let bytes = take(data, p, n)?;
+        if let Some(d) = decoding {
+            return Ok((d.ansi)(bytes, codepage));
+        }
         if !is_cp1252(codepage) {
             return Err(Error::new(crate::read::error::ErrorKind::Unsupported, format!("group 1000: code page {codepage} is not decoded")));
         }
@@ -134,10 +145,10 @@ fn string(data: &[u8], p: &mut usize, ver: DwgVersion) -> Result<String> {
     }
 }
 
-fn item(data: &[u8], p: &mut usize, ver: DwgVersion) -> Result<XValue> {
+fn item(data: &[u8], p: &mut usize, ver: DwgVersion, text: Option<text::TextDecoding>) -> Result<XValue> {
     let code = fixed::<1>(data, p)?[0];
     Ok(match code {
-        0 => XValue::Str(string(data, p, ver)?),
+        0 => XValue::Str(string(data, p, ver, text)?),
         2 => match fixed::<1>(data, p)?[0] {
             0 => XValue::Open,
             1 => XValue::Close,
@@ -443,7 +454,7 @@ mod tests {
         w.bits(5, 0b10011); // what follows in the object
         let mut r = BitReader::new(&w.buf);
         r.skip_bits(3).unwrap();
-        let x = read(&mut r, DwgVersion::R2004, 0x40).unwrap();
+        let x = read(&mut r, DwgVersion::R2004, 0x40, None).unwrap();
         assert_eq!(
             x,
             vec![
@@ -456,7 +467,7 @@ mod tests {
         let mut w = BitWriter::default();
         w.bs(0);
         let mut r = BitReader::new(&w.buf);
-        assert!(read(&mut r, DwgVersion::R2018, 1).unwrap().is_empty());
+        assert!(read(&mut r, DwgVersion::R2018, 1, None).unwrap().is_empty());
         assert_eq!(r.position(), 2);
     }
 
@@ -467,7 +478,7 @@ mod tests {
         w.handle(5, 0x12);
         w.rc(70);
         let mut r = BitReader::new(&w.buf);
-        assert!(read(&mut r, DwgVersion::R2004, 1).is_err());
+        assert!(read(&mut r, DwgVersion::R2004, 1, None).is_err());
     }
 
     fn object(h: u64, code: u16, name: &str, kind: ObjectKind, xdata: Vec<XData>) -> Object {
@@ -573,7 +584,7 @@ mod tests {
             for v in [DwgVersion::R2000, DwgVersion::R2018] {
                 let _ = items(&d, v);
                 let mut r = BitReader::new(&d);
-                let _ = read(&mut r, v, 1);
+                let _ = read(&mut r, v, 1, None);
             }
         }
     }

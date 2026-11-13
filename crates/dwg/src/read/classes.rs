@@ -19,7 +19,7 @@ pub(crate) fn parse(data: &[u8], ver: DwgVersion, maintenance: u8, codepage: u16
     }
     let body = wrapped.body;
     if ver < V::R2007 {
-        let s = Streams { ver, codepage, dat: BitReader::new(body), strs: None, hdl: None };
+        let s = Streams { ver, codepage, dat: BitReader::new(body), strs: None, hdl: None, text: Default::default() };
         return Ok((read_records(s)?, notes));
     }
     // R2007+: an RL bit size, then records whose strings sit in a string
@@ -44,7 +44,7 @@ pub(crate) fn parse(data: &[u8], ver: DwgVersion, maintenance: u8, codepage: u16
         };
         let mut dat = BitReader::with_bounds(body, 32, endbit);
         dat.set_end(endbit);
-        let s = Streams { ver, codepage, dat, strs, hdl: None };
+        let s = Streams { ver, codepage, dat, strs, hdl: None, text: Default::default() };
         match read_records(s) {
             Ok(list) if list.iter().all(plausible) => return Ok((list, notes)),
             Ok(_) => last_err = Error::format("class records implausible"),

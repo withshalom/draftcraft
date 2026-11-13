@@ -24,14 +24,9 @@ use super::super::{
 pub(super) fn check() {
     for case in complex::dimensions().into_iter().chain([paired_dimensions(["*D42", "*D7"])]) {
         for version in Version::ALL {
-            let mut expected = case.drawing.clone();
-            // DIMFXL has no native field before R2007 (same limit as other dimension-style cases).
-            if version < Version::R2007 {
-                for style in &mut expected.dim_styles {
-                    style.fixed_ext_length = 0.0;
-                }
-            }
-            super::check_version_using(&case.name, &case.drawing, &expected, version, equivalent);
+            // DIMFXL has no native field before R2007: the direct reader gives the default (the
+            // saved value here), as for the other dimension-style cases.
+            super::check_version_using(&case.name, &case.drawing, &case.drawing, version, equivalent);
         }
     }
 }

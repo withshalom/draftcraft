@@ -38,13 +38,15 @@ fn finite(v: f64) -> f64 {
     if v.is_finite() { v } else { 0.0 }
 }
 
+/// One multiline vertex as either file holds it: the point, the direction of the segment that
+/// starts there, the miter direction and, per style element, its distance along the miter then
+/// where it runs and breaks (DXF groups 41).
 #[derive(Default)]
-struct RawVertex {
-    p: Vec3,
-    dir: Vec3,
-    miter: Vec3,
-    /// Per element: its groups 41.
-    params: Vec<Vec<f64>>,
+pub(crate) struct RawVertex {
+    pub(crate) p: Vec3,
+    pub(crate) dir: Vec3,
+    pub(crate) miter: Vec3,
+    pub(crate) params: Vec<Vec<f64>>,
 }
 
 /// The MLINE entity's own groups (after the `AcDbMline` marker when present). The style's
@@ -106,6 +108,13 @@ pub(crate) fn read_entity(tags: &[Tag]) -> MLine {
             _ => {}
         }
     }
+    build(style, scale, just, flags, verts)
+}
+
+/// The drawing's multiline from a file's values: its style name, scale, justification, flags
+/// (2 closed, 4 no start caps, 8 no end caps) and vertices. The style's elements are recovered
+/// from the vertex data; [`apply_styles`] replaces them with the style's.
+pub(crate) fn build(style: String, scale: f64, just: MLineJust, flags: i64, verts: Vec<RawVertex>) -> MLine {
     let nelem = verts.first().map(|r| r.params.len()).unwrap_or(0).clamp(1, MAX_MLINE_ELEMENTS);
     // Element offsets from the first vertex: its distance along the miter, measured across the
     // first segment.
@@ -307,6 +316,13 @@ fn read_style(tags: &[Tag]) -> Option<MLineStyle> {
             _ => {}
         }
     }
+    style_from(st, flags, fill)
+}
+
+/// A multiline style from the values either file holds: name, description, elements (offset,
+/// colour, linetype name) and cap angles already in `st`, with the flags (DXF group 70) and the
+/// fill colour. `None` without a name.
+pub(crate) fn style_from(mut st: MLineStyle, flags: i64, fill: Color) -> Option<MLineStyle> {
     if st.name.trim().is_empty() {
         return None;
     }
@@ -345,6 +361,12 @@ pub(crate) fn resolve(secs: &[Section], d: &mut Drawing) {
             }
         });
     }
+    apply_styles(d, styles);
+}
+
+/// The file's multiline styles into the drawing (replacing those of the same name), then each
+/// multiline's elements from its style when the style has as many.
+pub(crate) fn apply_styles(d: &mut Drawing, styles: Vec<MLineStyle>) {
     for st in styles {
         match d.mline_styles.iter_mut().find(|x| x.name.eq_ignore_ascii_case(&st.name)) {
             Some(x) => *x = st,

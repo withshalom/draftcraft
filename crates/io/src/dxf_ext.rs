@@ -20,6 +20,11 @@ use serde_json::Value;
 
 /// Registered application name of DraftCraft's extended data.
 pub(crate) const APP: &str = "DRAFTCRAFT";
+
+/// The DraftCraft extended data of a linetype whose element rotations (group 50) are in degrees,
+/// as AutoCAD writes them (its DXF of ZIGZAG and BATTING has 180 where its DWG has pi). Without
+/// it, a file DraftCraft wrote has them in radians, as DraftCraft wrote them before.
+pub(crate) const LTYPE_DEGREES: &str = "LTYPE_DEGREES";
 /// Named-object-dictionary key of the constraint XRECORD.
 pub(crate) const CONSTRAINTS_KEY: &str = "DRAFTCRAFT_CONSTRAINTS";
 /// Named-object-dictionary key of the saved layer states XRECORD.
@@ -865,7 +870,13 @@ pub(crate) fn apply_anno(d: &mut draftcraft_doc::Drawing, p: AnnoPayload) {
 pub(crate) fn read_scale(tags: &[Tag]) -> Option<draftcraft_doc::AnnoScale> {
     let name = tags.iter().find(|t| t.code == 300).map(Tag::str)?;
     let num = |c: i32| tags.iter().find(|t| t.code == c).map(Tag::f64);
-    let s = draftcraft_doc::AnnoScale::new(name.trim(), num(140)?, num(141)?);
+    scale_from(&name, num(140)?, num(141)?)
+}
+
+/// An annotation scale from a SCALE object's name and its paper and drawing units, when it is a
+/// usable one. The DWG reader uses it too.
+pub(crate) fn scale_from(name: &str, paper_units: f64, drawing_units: f64) -> Option<draftcraft_doc::AnnoScale> {
+    let s = draftcraft_doc::AnnoScale::new(name.trim(), paper_units, drawing_units);
     (s.is_valid() && !s.name.is_empty() && s.name.len() <= 255).then_some(s)
 }
 

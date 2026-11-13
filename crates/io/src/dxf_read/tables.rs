@@ -111,6 +111,9 @@ pub(super) fn tables(tags: &[Tag], d: &mut Drawing, rx: &mut Rx) {
         .collect();
     // Handle maps first: DIMSTYLE records refer to text styles and arrow blocks by handle.
     index_table_handles(&recs, rx);
+    // A file DraftCraft wrote registers its application; one from before LTYPE_DEGREES has its
+    // linetype rotations in radians.
+    let draftcraft_file = recs.iter().any(|(k, tg)| k == "APPID" && T(tg).s(2).is_some_and(|n| n.trim().eq_ignore_ascii_case(crate::dxf_ext::APP)));
     let mut active_vport = false;
     // Index of layers already appended, by lower-cased name, so each LAYER record updates or
     // appends in O(1) instead of scanning the growing layer list — otherwise many distinct layer
@@ -172,7 +175,9 @@ pub(super) fn tables(tags: &[Tag], d: &mut Drawing, rx: &mut Rx) {
                     continue;
                 }
                 linetype_names.insert(name.to_ascii_lowercase());
-                let pattern = ltype_pattern(&tg, &ltype_styles);
+                let degrees = !draftcraft_file
+                    || crate::dxf_ext::xdata(&tg, crate::dxf_ext::APP).iter().any(|x| x.code == 1000 && x.str() == crate::dxf_ext::LTYPE_DEGREES);
+                let pattern = ltype_pattern(&tg, &ltype_styles, degrees);
                 d.linetypes.push(Linetype { name, description: t.s(3).unwrap_or_default(), pattern });
             }
             "STYLE" => {
@@ -363,7 +368,8 @@ fn vport_record(d: &mut Drawing, t: &T) {
 /// LTYPE): each `49` length starts an element; `74` type flags (1 absolute rotation, 2 text,
 /// 4 shape), `75` shape number, `340` STYLE, `46` scale, `50` rotation (radians), `44`/`45`
 /// offset and `9` text follow it.
-fn ltype_pattern(tags: &[Tag], styles: &HashMap<String, String>) -> Vec<DashElement> {
+/// A linetype's elements; their rotations in degrees (`degrees`) or in radians.
+fn ltype_pattern(tags: &[Tag], styles: &HashMap<String, String>, degrees: bool) -> Vec<DashElement> {
     let mut out: Vec<DashElement> = Vec::new();
     for t in tags.iter().take_while(|t| t.code < 1000) {
         if t.code == 49 {
@@ -387,7 +393,7 @@ fn ltype_pattern(tags: &[Tag], styles: &HashMap<String, String>) -> Vec<DashElem
             340 if complex => el.style = styles.get(&t.str().trim().to_ascii_uppercase()).filter(|n| !n.trim().is_empty()).cloned(),
             9 if el.text.is_some() => el.text = Some(t.str()),
             46 if complex && v.is_finite() => el.scale = v,
-            50 if complex && v.is_finite() => el.rotation = v,
+            50 if complex && v.is_finite() => el.rotation = if degrees { v.to_radians() } else { v },
             44 if complex && v.is_finite() => el.offset.x = v,
             45 if complex && v.is_finite() => el.offset.y = v,
             _ => {}

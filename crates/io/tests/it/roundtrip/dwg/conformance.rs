@@ -34,8 +34,9 @@ fn writer_populates_native_geometry_without_our_reader() {
     }
 }
 
+/// A linetype element's rotation reaches the DWG as it is: DraftCraft's DXF writes group 50 in
+/// degrees, as AutoCAD does (AutoCAD's DXF of ZIGZAG and BATTING has 180 where its DWG has pi).
 #[test]
-#[ignore = "Confirmed native DWG mismatch: a pi/2 linetype rotation is stored as pi/2 degrees; DXF unit interpretation needs investigation"]
 fn complex_linetype_rotation_is_correct_in_native_objects() {
     // Both document APIs specify radians. Do not infer correctness from a DXF round trip:
     // reader and writer can share a unit error. Public DXF references disagree about LTYPE

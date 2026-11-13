@@ -29,7 +29,23 @@ pub fn decode(o: &Object, classes: &[ClassDef], codepage: u16) -> Option<Result<
         return Some(Ok(n.clone()));
     }
     let raw = o.raw.as_ref()?;
-    let kind = match o.type_name.as_str() {
+    kind_of(&o.type_name, false)?;
+    let buf = object::raw_buffer(raw);
+    let ctx = DecodeCtx { ver: raw.version, codepage, classes, text: Default::default() };
+    let mut op = match object::open(&ctx, &buf, 0) {
+        Ok(op) => op,
+        Err(e) => return Some(Err(e)),
+    };
+    decode_opened(&mut op, &super::styles::Lookup::from_text_styles(Vec::new()), false).map(|r| r.map(|(n, _)| n))
+}
+
+/// The common handles of an object: its owner, its reactors and its extension dictionary.
+pub(crate) type CommonHandles = (u64, Vec<Handle>, u64);
+
+/// Which decoder reads an object of `type_name`; the style objects kept as their DXF groups
+/// ([`Groups::KINDS`]) only when `groups`.
+fn kind_of(type_name: &str, groups: bool) -> Option<u8> {
+    Some(match type_name {
         "DICTIONARY" | "ACDBDICTIONARYWDFLT" => 0,
         "XRECORD" => 1,
         "ACDBPLACEHOLDER" => 2,
@@ -37,12 +53,29 @@ pub fn decode(o: &Object, classes: &[ClassDef], codepage: u16) -> Option<Result<
         "SCALE" => 4,
         "LAYOUT" => 5,
         "MLINESTYLE" => 6,
+        k if groups && Groups::KINDS.contains(&k) => 7,
         _ => return None,
-    };
-    let buf = object::raw_buffer(raw);
-    let ctx = DecodeCtx { ver: raw.version, codepage, classes };
+    })
+}
+
+/// [`decode`] for an object already opened, with its common handles; with `groups`, also the
+/// style objects of [`Groups::KINDS`] as their DXF groups (text styles named by `lookup`).
+/// `None` for another type, or a style object of a version its codec does not read.
+pub(crate) fn decode_opened(
+    op: &mut object::Opened<'_>,
+    lookup: &super::styles::Lookup,
+    groups: bool,
+) -> Option<Result<(NonGraphic, CommonHandles)>> {
+    let kind = kind_of(&op.type_name, groups)?;
+    if kind == 7 {
+        let common = match object::common_handles(op) {
+            Ok((owner, reactors, xdictionary)) => (owner, reactors, xdictionary),
+            Err(e) => return Some(Err(e)),
+        };
+        let (own, type_name) = (op.handle, op.type_name.clone());
+        return super::styles::decode(&type_name, &mut op.s, own, lookup).map(|r| r.map(|g| (NonGraphic::Groups(g), common)));
+    }
     Some((|| {
-        let mut op = object::open(&ctx, &buf, 0)?;
         let wdflt = op.type_name == "ACDBDICTIONARYWDFLT";
         // Type data first, then the handles: common ones, then the type's.
         let partial = match kind {
@@ -64,10 +97,10 @@ pub fn decode(o: &Object, classes: &[ClassDef], codepage: u16) -> Option<Result<
             5 => Partial::Layout(Box::new(layout_data(&mut op.s)?)),
             _ => Partial::MLine(mlinestyle_data(&mut op.s)?),
         };
-        let _ = object::common_handles(&mut op)?;
+        let common = object::common_handles(op)?;
         let own = op.handle;
         let s = &mut op.s;
-        Ok(match partial {
+        let n = match partial {
             Partial::Done(n) => n,
             Partial::Dict((mut d, names)) => {
                 for name in names {
@@ -106,7 +139,8 @@ pub fn decode(o: &Object, classes: &[ClassDef], codepage: u16) -> Option<Result<
                 }
                 NonGraphic::MLineStyle(m)
             }
-        })
+        };
+        Ok((n, common))
     })())
 }
 
@@ -173,7 +207,7 @@ fn xrecord_data(s: &mut Streams) -> Result<XRecord> {
     }
     let bytes = s.dat.raw_bytes(n)?;
     let cloning = if s.ver >= V::R2000 { s.dat.bs()? } else { 0 };
-    let items = xrecord_items(&bytes, s.ver)?;
+    let items = xrecord_items(&bytes, s.ver, s.text.ansi, s.codepage)?;
     Ok(XRecord { cloning, items })
 }
 
@@ -187,7 +221,9 @@ fn le<const N: usize>(b: &[u8]) -> [u8; N] {
     a
 }
 
-fn xrecord_items(d: &[u8], ver: V) -> Result<Vec<(u16, XrValue)>> {
+/// The items of XRECORD data `d`: 8-bit strings (before R2007) in the code page `codepage`, by
+/// `ansi`.
+fn xrecord_items(d: &[u8], ver: V, ansi: fn(&[u8], u16) -> String, codepage: u16) -> Result<Vec<(u16, XrValue)>> {
     let mut p = 0usize;
     let mut out = Vec::new();
     let take = |p: &mut usize, n: usize| -> Result<&[u8]> {
@@ -206,9 +242,11 @@ fn xrecord_items(d: &[u8], ver: V) -> Result<Vec<(u16, XrValue)>> {
                     let units: Vec<u16> = take(&mut p, len * 2)?.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect();
                     XrValue::Str(String::from_utf16_lossy(&units))
                 } else {
-                    let len = take(&mut p, 1)?[0] as usize;
+                    // Before R2007: a 16-bit length, the code page, the bytes (AutoCAD's and
+                    // acadrust's files alike).
+                    let len = u16::from_le_bytes(le(take(&mut p, 2)?)) as usize;
                     let _codepage = take(&mut p, 1)?;
-                    XrValue::Str(crate::read::text::decode_ansi(take(&mut p, len)?, 30))
+                    XrValue::Str(ansi(take(&mut p, len)?, codepage))
                 }
             }
             XrType::Point => {
@@ -499,7 +537,7 @@ pub fn dimstyle(o: &Object, classes: &[ClassDef], codepage: u16) -> Option<Resul
         return None;
     }
     let buf = object::raw_buffer(raw);
-    let ctx = DecodeCtx { ver: raw.version, codepage, classes };
+    let ctx = DecodeCtx { ver: raw.version, codepage, classes, text: Default::default() };
     Some((|| {
         let mut op = object::open(&ctx, &buf, 0)?;
         let s = &mut op.s;
@@ -674,7 +712,7 @@ pub fn vport(o: &Object, classes: &[ClassDef], codepage: u16) -> Option<Result<V
         return None;
     }
     let buf = object::raw_buffer(raw);
-    let ctx = DecodeCtx { ver: raw.version, codepage, classes };
+    let ctx = DecodeCtx { ver: raw.version, codepage, classes, text: Default::default() };
     Some((|| {
         let mut op = object::open(&ctx, &buf, 0)?;
         let s = &mut op.s;
@@ -813,7 +851,7 @@ pub(crate) fn decode_groups(o: &Object, classes: &[ClassDef], codepage: u16, loo
     }
     let raw = o.raw.as_ref()?;
     let buf = object::raw_buffer(raw);
-    let ctx = DecodeCtx { ver: raw.version, codepage, classes };
+    let ctx = DecodeCtx { ver: raw.version, codepage, classes, text: Default::default() };
     let mut op = match object::open(&ctx, &buf, 0) {
         Ok(op) => op,
         Err(e) => return Some(Err(e)),
@@ -847,7 +885,7 @@ pub fn promote(d: &mut Drawing) {
             // older .cad files): decoded now, when the record fits.
             (_, ObjectKind::Unsupported) if matches!(o.type_code, 0x2E | 0x2F) || matches!(o.type_name.as_str(), "IMAGE" | "WIPEOUT") => {
                 o.raw.as_ref().and_then(|raw| {
-                    let ctx = DecodeCtx { ver: raw.version, codepage, classes: &classes };
+                    let ctx = DecodeCtx { ver: raw.version, codepage, classes: &classes, text: Default::default() };
                     let k = object::decode(&ctx, &object::raw_buffer(raw), 0).ok()?.kind;
                     matches!(k, ObjectKind::Tolerance(_) | ObjectKind::MLine(_) | ObjectKind::Image(_) | ObjectKind::Wipeout(_)).then_some(k)
                 })

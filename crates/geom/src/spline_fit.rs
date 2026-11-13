@@ -126,6 +126,29 @@ impl Spline {
         s
     }
 
+    /// Fit an open curve through `fit` with its end derivatives as given, length included (AutoCAD
+    /// 2013 and later store them so: a start derivative `d` puts the second control point of a
+    /// two-point fit at a third of `d` from the first). `opts` gives the knot parametrisation and
+    /// the tolerance; the spline keeps the derivatives' directions for later refits. Without
+    /// derivatives it is [`Spline::fit_with`].
+    pub fn fit_with_derivatives(fit: &[Vec2], opts: FitOptions, d0: Option<Vec2>, d1: Option<Vec2>) -> Spline {
+        let opts = opts.sanitized();
+        let usable = |d: Option<Vec2>| d.filter(|v| v.x.is_finite() && v.y.is_finite() && v.len() > 1e-12);
+        let (d0, d1) = (usable(d0), usable(d1));
+        let n = fit.len();
+        if n < 2 || (d0.is_none() && d1.is_none()) || n > MAX_INTERP_POINTS {
+            return Spline::fit_with(fit, false, opts);
+        }
+        let u = params(fit, opts.knots, false);
+        let approximated = if opts.tolerance > 0.0 && n <= MAX_APPROX_POINTS { approximate(fit, &u, d0, d1, opts.tolerance) } else { None };
+        let Some(mut s) = approximated.or_else(|| interpolate(fit, &u, d0, d1)) else {
+            return Spline::fit_with(fit, false, opts);
+        };
+        s.fit = fit.to_vec();
+        s.fit_opts = FitOptions { start_tangent: d0.map(Vec2::normalized), end_tangent: d1.map(Vec2::normalized), ..opts };
+        s
+    }
+
     /// Rebuild from new fit points with this spline's knot parametrisation, tangents and tolerance.
     pub fn refit(&self, fit: &[Vec2], closed: bool) -> Spline {
         Spline::fit_with(fit, closed, self.fit_opts)
@@ -674,6 +697,31 @@ fn closed_fit(fit: &[Vec2], kind: KnotParam, tol: f64) -> Spline {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// AutoCAD's own numbers (SPLINE 434 of ACadSharp's sample, saved by AutoCAD 2013 and 2018):
+    /// two fit points and the end derivatives the file stores; AutoCAD's DXF of the drawing lists
+    /// the control points they make, a third of each derivative from its end.
+    #[test]
+    fn derivatives_as_given_make_autocads_control_points() {
+        let fit = [Vec2::new(250.458_790_783_224_12, 17.426_024_184_844_767), Vec2::new(259.224_551_110_004_1, 27.287_504_552_472_21)];
+        let d0 = Vec2::new(12.764_940_978_905_884, 32.486_871_540_440_6);
+        let d1 = Vec2::new(-0.490_238_930_819_259_6, 29.353_149_111_158_19);
+        let opts = FitOptions { knots: KnotParam::Uniform, tolerance: 1e-10, ..FitOptions::default() };
+        let s = Spline::fit_with_derivatives(&fit, opts, Some(d0), Some(d1));
+        let want = [
+            Vec2::new(250.458_790_783_224_1, 17.426_024_184_844_77),
+            Vec2::new(254.713_771_109_526_1, 28.254_981_364_991_63),
+            Vec2::new(259.387_964_086_943_8, 17.503_121_515_419_48),
+            Vec2::new(259.224_551_110_004_1, 27.287_504_552_472_21),
+        ];
+        assert_eq!(s.control.len(), 4);
+        for (got, want) in s.control.iter().zip(want) {
+            assert!(got.near(want, 1e-9), "{got:?} vs AutoCAD's {want:?}");
+        }
+        assert_eq!(s.knots, vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0]);
+        assert_eq!(s.fit, fit.to_vec());
+        assert!(s.fit_opts.start_tangent.is_some_and(|t| (t.len() - 1.0).abs() < 1e-12));
+    }
 
     fn pts() -> Vec<Vec2> {
         vec![Vec2::new(0.0, 0.0), Vec2::new(1.0, 0.2), Vec2::new(5.0, 3.0), Vec2::new(6.0, 3.1), Vec2::new(9.0, 0.0)]
